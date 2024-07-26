@@ -1,63 +1,76 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import ttk, filedialog, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
+from ttkthemes import ThemedStyle
 from docx2pdf import convert
-import os
 import threading
+import os
 
-def select_file():
-    file_path = filedialog.askopenfilename(filetypes=[("Word files", "*.docx")])
-    if file_path:
-        file_entry.delete(0, tk.END)
-        file_entry.insert(0, file_path)
+class WordToPDFConverter:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Word to PDF Converter")
+        self.style = ThemedStyle(root)
+        self.style.set_theme("breeze")
+        self.files = []
+        
+        self.create_widgets()
+        self.root.drop_target_register(DND_FILES)
+        self.root.dnd_bind('<<Drop>>', self.add_files)
 
-def drop(event):
-    file_path = event.data.strip('{}')
-    if os.path.isfile(file_path) and file_path.lower().endswith('.docx'):
-        file_entry.delete(0, tk.END)
-        file_entry.insert(0, file_path)
-    else:
-        messagebox.showerror("Error", "Please drop a valid .docx file")
+    def create_widgets(self):
+        self.frame = ttk.Frame(self.root, padding=10)
+        self.frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-def convert_to_pdf():
-    input_file = file_entry.get()
-    if not input_file or not input_file.lower().endswith('.docx'):
-        messagebox.showerror("Error", "Please select a valid Word file")
-        return
-    
-    output_file = os.path.splitext(input_file)[0] + ".pdf"
-    
-    def conversion_task():
-        try:
-            progress_bar.start()
-            convert(input_file, output_file)
-            progress_bar.stop()
-            messagebox.showinfo("Success", f"File converted successfully:\n{output_file}")
-        except Exception as e:
-            progress_bar.stop()
-            messagebox.showerror("Error", str(e))
-    
-    threading.Thread(target=conversion_task).start()
+        self.add_button = ttk.Button(self.frame, text="Add Files", command=self.browse_files)
+        self.add_button.grid(row=0, column=0, padx=5, pady=5)
 
-# Create the main window
-root = TkinterDnD.Tk()
-root.title("Word to PDF Converter")
+        self.convert_button = ttk.Button(self.frame, text="Convert", command=self.convert_files)
+        self.convert_button.grid(row=0, column=1, padx=5, pady=5)
 
-# Create and place widgets
-tk.Label(root, text="Select or Drag and Drop Word File:").pack(pady=10)
+        self.progress = ttk.Progressbar(self.frame, orient="horizontal", mode="determinate")
+        self.progress.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-file_entry = tk.Entry(root, width=50)
-file_entry.pack(pady=5)
+        self.file_listbox = tk.Listbox(self.frame, selectmode=tk.MULTIPLE, height=10)
+        self.file_listbox.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-file_entry.drop_target_register(DND_FILES)
-file_entry.dnd_bind('<<Drop>>', drop)
+    def browse_files(self):
+        files = filedialog.askopenfilenames(filetypes=[("Word Files", "*.docx")])
+        if files:
+            self.add_files_to_list(files)
 
-tk.Button(root, text="Browse", command=select_file).pack(pady=5)
-tk.Button(root, text="Convert to PDF", command=convert_to_pdf).pack(pady=10)
+    def add_files(self, event):
+        files = self.root.tk.splitlist(event.data)
+        self.add_files_to_list(files)
 
-# Progress bar
-progress_bar = ttk.Progressbar(root, mode='indeterminate')
-progress_bar.pack(pady=10, fill=tk.X)
+    def add_files_to_list(self, files):
+        for file in files:
+            if file not in self.files:
+                self.files.append(file)
+                self.file_listbox.insert(tk.END, file)
 
-# Run the application
-root.mainloop()
+    def convert_files(self):
+        if not self.files:
+            messagebox.showwarning("No files", "Please add files to convert.")
+            return
+
+        self.progress["value"] = 0
+        self.progress["maximum"] = len(self.files)
+
+        def conversion_task():
+            for file in self.files:
+                try:
+                    convert(file, os.path.splitext(file)[0] + ".pdf")
+                    self.progress["value"] += 1
+                except Exception as e:
+                    messagebox.showerror("Conversion error", str(e))
+                    self.progress["value"] += 1
+                    continue
+            messagebox.showinfo("Done", "Conversion completed.")
+        
+        threading.Thread(target=conversion_task).start()
+
+if __name__ == "__main__":
+    root = TkinterDnD.Tk()
+    app = WordToPDFConverter(root)
+    root.mainloop()
