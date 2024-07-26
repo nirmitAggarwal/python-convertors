@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from pdf2docx import Converter
 from threading import Thread
 from plyer import notification
@@ -11,8 +12,8 @@ class PDFToWordConverterApp:
         self.root.title("PDF to Word Converter")
         self.root.geometry("400x350")
 
-        # Create widgets
         self.create_widgets()
+        self.setup_drag_and_drop()
 
     def create_widgets(self):
         # PDF File selection
@@ -49,6 +50,19 @@ class PDFToWordConverterApp:
         # Convert button
         self.convert_button = tk.Button(self.root, text="Convert", command=self.start_conversion)
         self.convert_button.pack(pady=20)
+
+    def setup_drag_and_drop(self):
+        # Register the window for drag-and-drop
+        self.root.drop_target_register(DND_FILES)
+        self.root.dnd_bind('<<Drop>>', self.on_drop)
+
+    def on_drop(self, event):
+        # Extract the file path from the event
+        file_path = event.data.strip().strip('{}')
+        if os.path.isfile(file_path):
+            self.pdf_path.set(file_path)
+        else:
+            messagebox.showwarning("Drop Error", "Dropped item is not a valid file.")
 
     def select_pdf(self):
         file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
@@ -130,6 +144,6 @@ class PDFToWordConverterApp:
         self.loading_label.config(text="")
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = TkinterDnD.Tk()
     app = PDFToWordConverterApp(root)
     root.mainloop()
