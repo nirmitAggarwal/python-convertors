@@ -1,7 +1,7 @@
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from tkinterdnd2 import DND_FILES, TkinterDnD
+from tkinterdnd2 import TkinterDnD, DND_FILES
 from pdf2docx import Converter
 from threading import Thread
 from plyer import notification
@@ -10,22 +10,22 @@ class PDFToWordConverterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("PDF to Word Converter")
-        self.root.geometry("400x350")
+        self.root.geometry("400x400")
 
+        self.pdf_files = []
         self.create_widgets()
         self.setup_drag_and_drop()
 
     def create_widgets(self):
         # PDF File selection
-        self.pdf_label = tk.Label(self.root, text="Select PDF file:")
+        self.pdf_label = tk.Label(self.root, text="Select PDF files:")
         self.pdf_label.pack(pady=10)
 
-        self.pdf_button = tk.Button(self.root, text="Browse", command=self.select_pdf)
+        self.pdf_button = tk.Button(self.root, text="Browse", command=self.select_pdfs)
         self.pdf_button.pack()
 
-        self.pdf_path = tk.StringVar()
-        self.pdf_entry = tk.Entry(self.root, textvariable=self.pdf_path, width=50)
-        self.pdf_entry.pack(pady=5)
+        self.pdf_listbox = tk.Listbox(self.root, selectmode=tk.MULTIPLE)
+        self.pdf_listbox.pack(pady=5, fill=tk.BOTH, expand=True)
 
         # Output Folder selection
         self.folder_label = tk.Label(self.root, text="Select output folder (optional):")
@@ -57,17 +57,22 @@ class PDFToWordConverterApp:
         self.root.dnd_bind('<<Drop>>', self.on_drop)
 
     def on_drop(self, event):
-        # Extract the file path from the event
-        file_path = event.data.strip().strip('{}')
-        if os.path.isfile(file_path):
-            self.pdf_path.set(file_path)
-        else:
-            messagebox.showwarning("Drop Error", "Dropped item is not a valid file.")
+        # Extract the file paths from the event
+        file_paths = event.data.strip().strip('{}').split(' ')
+        for file_path in file_paths:
+            if os.path.isfile(file_path) and file_path.lower().endswith('.pdf'):
+                if file_path not in self.pdf_files:
+                    self.pdf_files.append(file_path)
+                    self.pdf_listbox.insert(tk.END, file_path)
+            else:
+                messagebox.showwarning("Drop Error", f"Dropped item '{file_path}' is not a valid PDF file.")
 
-    def select_pdf(self):
-        file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
-        if file_path:
-            self.pdf_path.set(file_path)
+    def select_pdfs(self):
+        file_paths = filedialog.askopenfilenames(filetypes=[("PDF files", "*.pdf")])
+        for file_path in file_paths:
+            if file_path not in self.pdf_files:
+                self.pdf_files.append(file_path)
+                self.pdf_listbox.insert(tk.END, file_path)
 
     def select_folder(self):
         folder_path = filedialog.askdirectory()
@@ -75,20 +80,15 @@ class PDFToWordConverterApp:
             self.folder_path.set(folder_path)
 
     def start_conversion(self):
-        pdf_file = self.pdf_path.get()
         output_folder = self.folder_path.get()
 
-        if not pdf_file:
-            messagebox.showwarning("Input Error", "Please select a PDF file.")
-            return
-
-        if not os.path.isfile(pdf_file):
-            messagebox.showerror("File Error", "The selected PDF file does not exist.")
+        if not self.pdf_files:
+            messagebox.showwarning("Input Error", "Please select at least one PDF file.")
             return
 
         # Determine output folder
         if not output_folder:
-            output_folder = os.path.dirname(pdf_file)
+            output_folder = None
 
         # Disable button and show loading message
         self.convert_button.config(state=tk.DISABLED)
@@ -96,30 +96,34 @@ class PDFToWordConverterApp:
         self.progress.set(0)
 
         # Start the conversion in a separate thread
-        thread = Thread(target=self.convert_pdf_to_word, args=(pdf_file, output_folder))
+        thread = Thread(target=self.convert_pdfs_to_words, args=(self.pdf_files, output_folder))
         thread.start()
 
-    def convert_pdf_to_word(self, pdf_file, output_folder):
-        # Generate the output Word file path
-        word_file = os.path.join(output_folder, os.path.splitext(os.path.basename(pdf_file))[0] + '.docx')
+    def convert_pdfs_to_words(self, pdf_files, output_folder):
+        total_files = len(pdf_files)
+        for index, pdf_file in enumerate(pdf_files):
+            try:
+                if not output_folder:
+                    output_folder = os.path.dirname(pdf_file)
 
-        try:
-            cv = Converter(pdf_file)
-            cv.convert(word_file, start=0, end=None)
+                # Generate the output Word file path
+                word_file = os.path.join(output_folder, os.path.splitext(os.path.basename(pdf_file))[0] + '.docx')
 
-            # Simulate progress update
-            for i in range(0, 101, 10):
-                self.root.after(i * 100, self.update_progress, i)
-            
-            cv.close()
+                cv = Converter(pdf_file)
+                cv.convert(word_file, start=0, end=None)
+                cv.close()
 
-            # Show a notification
-            self.root.after(0, self.show_notification, word_file)
-        except Exception as e:
-            self.root.after(0, self.show_error, f"An error occurred: {str(e)}")
-        finally:
-            # Update GUI elements in the main thread
-            self.root.after(0, self.update_gui_after_conversion)
+                # Update progress
+                progress_value = ((index + 1) / total_files) * 100
+                self.root.after(0, self.update_progress, progress_value)
+
+                # Show a notification
+                self.root.after(0, self.show_notification, word_file)
+            except Exception as e:
+                self.root.after(0, self.show_error, f"An error occurred: {str(e)}")
+
+        # Update GUI elements in the main thread after all conversions
+        self.root.after(0, self.update_gui_after_conversion)
 
     def update_progress(self, value):
         self.progress.set(value)
@@ -144,6 +148,6 @@ class PDFToWordConverterApp:
         self.loading_label.config(text="")
 
 if __name__ == "__main__":
-    root = TkinterDnD.Tk()
+    root = TkinterDnD.Tk()  # Initialize TkinterDnD window
     app = PDFToWordConverterApp(root)
     root.mainloop()
