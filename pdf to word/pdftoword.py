@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from pdf2docx import Converter
 from threading import Thread
 from plyer import notification
@@ -9,7 +9,7 @@ class PDFToWordConverterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("PDF to Word Converter")
-        self.root.geometry("400x200")
+        self.root.geometry("400x350")
 
         # Create widgets
         self.create_widgets()
@@ -26,9 +26,25 @@ class PDFToWordConverterApp:
         self.pdf_entry = tk.Entry(self.root, textvariable=self.pdf_path, width=50)
         self.pdf_entry.pack(pady=5)
 
+        # Output Folder selection
+        self.folder_label = tk.Label(self.root, text="Select output folder (optional):")
+        self.folder_label.pack(pady=10)
+
+        self.folder_button = tk.Button(self.root, text="Browse", command=self.select_folder)
+        self.folder_button.pack()
+
+        self.folder_path = tk.StringVar()
+        self.folder_entry = tk.Entry(self.root, textvariable=self.folder_path, width=50)
+        self.folder_entry.pack(pady=5)
+
         # Loading Label
         self.loading_label = tk.Label(self.root, text="", fg="blue")
         self.loading_label.pack(pady=10)
+
+        # Progress Bar
+        self.progress = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(self.root, variable=self.progress, maximum=100, mode='determinate')
+        self.progress_bar.pack(pady=10, fill=tk.X, padx=20)
 
         # Convert button
         self.convert_button = tk.Button(self.root, text="Convert", command=self.start_conversion)
@@ -39,8 +55,14 @@ class PDFToWordConverterApp:
         if file_path:
             self.pdf_path.set(file_path)
 
+    def select_folder(self):
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            self.folder_path.set(folder_path)
+
     def start_conversion(self):
         pdf_file = self.pdf_path.get()
+        output_folder = self.folder_path.get()
 
         if not pdf_file:
             messagebox.showwarning("Input Error", "Please select a PDF file.")
@@ -50,21 +72,31 @@ class PDFToWordConverterApp:
             messagebox.showerror("File Error", "The selected PDF file does not exist.")
             return
 
+        # Determine output folder
+        if not output_folder:
+            output_folder = os.path.dirname(pdf_file)
+
         # Disable button and show loading message
         self.convert_button.config(state=tk.DISABLED)
         self.loading_label.config(text="Converting... Please wait...")
+        self.progress.set(0)
 
         # Start the conversion in a separate thread
-        thread = Thread(target=self.convert_pdf_to_word, args=(pdf_file,))
+        thread = Thread(target=self.convert_pdf_to_word, args=(pdf_file, output_folder))
         thread.start()
 
-    def convert_pdf_to_word(self, pdf_file):
+    def convert_pdf_to_word(self, pdf_file, output_folder):
         # Generate the output Word file path
-        word_file = os.path.splitext(pdf_file)[0] + '.docx'
+        word_file = os.path.join(output_folder, os.path.splitext(os.path.basename(pdf_file))[0] + '.docx')
 
         try:
             cv = Converter(pdf_file)
             cv.convert(word_file, start=0, end=None)
+
+            # Simulate progress update
+            for i in range(0, 101, 10):
+                self.root.after(i * 100, self.update_progress, i)
+            
             cv.close()
 
             # Show a notification
@@ -74,6 +106,9 @@ class PDFToWordConverterApp:
         finally:
             # Update GUI elements in the main thread
             self.root.after(0, self.update_gui_after_conversion)
+
+    def update_progress(self, value):
+        self.progress.set(value)
 
     def show_notification(self, word_file):
         try:
