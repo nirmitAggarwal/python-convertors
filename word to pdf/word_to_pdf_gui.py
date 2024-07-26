@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from docx2pdf import convert
 import os
 
@@ -8,6 +9,10 @@ def select_file():
     if file_path:
         file_entry.delete(0, tk.END)
         file_entry.insert(0, file_path)
+
+def drop(event):
+    file_entry.delete(0, tk.END)
+    file_entry.insert(0, event.data)
 
 def convert_to_pdf():
     input_file = file_entry.get()
@@ -24,14 +29,17 @@ def convert_to_pdf():
         messagebox.showerror("Error", str(e))
 
 # Create the main window
-root = tk.Tk()
+root = TkinterDnD.Tk()
 root.title("Word to PDF Converter")
 
 # Create and place widgets
-tk.Label(root, text="Select Word File:").pack(pady=10)
+tk.Label(root, text="Select or Drag and Drop Word File:").pack(pady=10)
 
 file_entry = tk.Entry(root, width=50)
 file_entry.pack(pady=5)
+
+file_entry.drop_target_register(DND_FILES)
+file_entry.dnd_bind('<<Drop>>', drop)
 
 tk.Button(root, text="Browse", command=select_file).pack(pady=5)
 tk.Button(root, text="Convert to PDF", command=convert_to_pdf).pack(pady=10)
