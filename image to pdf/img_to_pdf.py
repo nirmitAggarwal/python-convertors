@@ -1,5 +1,7 @@
 import os
-from tkinter import Tk, Button, Canvas, filedialog, messagebox, PhotoImage, Frame
+from tkinter import Tk, Canvas, filedialog, messagebox, PhotoImage
+from tkinter import ttk
+from tkinter.font import Font
 from PIL import Image, ImageTk
 
 class ImageToPDFApp(Tk):
@@ -7,24 +9,42 @@ class ImageToPDFApp(Tk):
         super().__init__()
         self.title("Image to PDF Converter")
         self.geometry("800x600")
+        self.configure(bg='#2E2E2E')
 
         self.images = []
         self.image_objects = []
 
+        # Styling
+        style = ttk.Style(self)
+        style.theme_use('clam')
+
+        style.configure('TButton', font=('Helvetica', 12, 'bold'), borderwidth=0, focusthickness=3, focuscolor='none')
+        style.configure('TFrame', background='#2E2E2E')
+        style.configure('TLabel', background='#2E2E2E', foreground='white', font=('Helvetica', 14, 'bold'))
+        style.map('TButton', foreground=[('pressed', 'white'), ('active', '#3C3F41')],
+                  background=[('pressed', '#4B4E50'), ('active', '#6C6F71')])
+
+        # Custom Font
+        custom_font = Font(family="Helvetica", size=12, weight="bold")
+
+        # Frame for buttons
+        button_frame = ttk.Frame(self)
+        button_frame.pack(pady=10)
+
         # Browse Button
-        browse_button = Button(self, text="Browse Images", command=self.browse_images)
-        browse_button.pack(pady=10)
+        browse_button = ttk.Button(button_frame, text="Browse Images", command=self.browse_images)
+        browse_button.grid(row=0, column=0, padx=10)
 
         # Convert Button
-        convert_button = Button(self, text="Convert", command=self.convert_to_pdf)
-        convert_button.pack(pady=10)
+        convert_button = ttk.Button(button_frame, text="Convert", command=self.convert_to_pdf)
+        convert_button.grid(row=0, column=1, padx=10)
 
         # Clear Button
-        clear_button = Button(self, text="Clear List", command=self.clear_list)
-        clear_button.pack(pady=10)
+        clear_button = ttk.Button(button_frame, text="Clear List", command=self.clear_list)
+        clear_button.grid(row=0, column=2, padx=10)
 
         # Canvas for displaying images
-        self.canvas = Canvas(self, bg='white')
+        self.canvas = Canvas(self, bg='#2E2E2E', highlightthickness=0)
         self.canvas.pack(pady=10, fill='both', expand=True)
 
         self.canvas.bind("<ButtonPress-1>", self.on_image_press)
