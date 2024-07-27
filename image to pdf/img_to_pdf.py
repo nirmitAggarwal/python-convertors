@@ -1,5 +1,5 @@
 import os
-from tkinter import Tk, Button, Canvas, filedialog, messagebox, Frame, PhotoImage
+from tkinter import Tk, Button, filedialog, messagebox, PhotoImage
 from tkinter import ttk
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image, ImageTk
@@ -25,29 +25,17 @@ class ImageToPDFApp(TkinterDnD.Tk):
         clear_button = Button(self, text="Clear List", command=self.clear_list)
         clear_button.pack(pady=10)
 
-        # Canvas for displaying images
-        self.canvas = Canvas(self, bg='white')
-        self.canvas.pack(pady=10, fill='both', expand=True)
+        # Treeview for displaying images
+        self.tree = ttk.Treeview(self, columns=('Path'), show='tree')
+        self.tree.pack(pady=10, fill='both', expand=True)
+        self.tree.bind("<ButtonRelease-1>", self.on_item_select)
 
-        # Frame to hold the images
-        self.image_frame = Frame(self.canvas)
-        self.canvas.create_window((0, 0), window=self.image_frame, anchor='nw')
+        self.tree.tag_configure('image', image=None)
+        self.tree.bind('<B1-Motion>', self.drag_motion)
+        self.tree.bind('<ButtonRelease-1>', self.drop_item)
 
-        # Scrollbars
-        self.h_scroll = ttk.Scrollbar(self, orient='horizontal', command=self.canvas.xview)
-        self.h_scroll.pack(fill='x', side='bottom')
-        self.v_scroll = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
-        self.v_scroll.pack(fill='y', side='right')
-
-        self.canvas.configure(xscrollcommand=self.h_scroll.set, yscrollcommand=self.v_scroll.set)
-
-        self.canvas.bind("<Configure>", self.on_canvas_resize)
-        self.image_frame.bind("<Button-1>", self.start_drag)
-        self.image_frame.bind("<B1-Motion>", self.on_drag_motion)
-        self.image_frame.bind("<ButtonRelease-1>", self.on_drop)
-
-    def on_canvas_resize(self, event):
-        self.canvas.config(scrollregion=self.canvas.bbox("all"))
+        # Image references to avoid garbage collection
+        self.image_refs = []
 
     def browse_images(self):
         file_paths = filedialog.askopenfilenames(
@@ -63,36 +51,34 @@ class ImageToPDFApp(TkinterDnD.Tk):
         img = Image.open(file_path)
         img.thumbnail((100, 100))
         tk_img = ImageTk.PhotoImage(img)
-        img_label = Button(self.image_frame, image=tk_img, text=os.path.basename(file_path), compound='top')
-        img_label.image = tk_img  # keep a reference!
-        img_label.pack(side='left', padx=5, pady=5)
-        self.image_objects.append((img_label, file_path))
+        self.image_refs.append(tk_img)  # keep a reference!
+        self.tree.insert('', 'end', text=os.path.basename(file_path), values=(file_path,), tags=('image',))
+        self.tree.tag_configure('image', image=tk_img)
 
-    def start_drag(self, event):
-        widget = event.widget.winfo_containing(event.x_root, event.y_root)
-        if widget in [item[0] for item in self.image_objects]:
-            self.dragged_widget = widget
-            self.drag_start_index = self.image_objects.index(next(item for item in self.image_objects if item[0] == widget))
-            self.drag_start = event.x, event.y
+    def drag_motion(self, event):
+        self.tree.update_idletasks()
+        item = self.tree.identify('item', event.x, event.y)
+        self.tree.selection_set(item)
 
-    def on_drag_motion(self, event):
-        if hasattr(self, 'drag_start'):
-            dx = event.x - self.drag_start[0]
-            dy = event.y - self.drag_start[1]
-            self.dragged_widget.place(x=event.x_root + dx, y=event.y_root + dy, anchor='center')
+    def drop_item(self, event):
+        item = self.tree.selection()[0]
+        target = self.tree.identify_row(event.y)
+        if target and target != item:
+            items = self.tree.get_children()
+            item_idx = items.index(item)
+            target_idx = items.index(target)
+            self.tree.move(item, '', target_idx if item_idx < target_idx else target_idx+1)
+            self.update_image_order()
 
-    def on_drop(self, event):
-        if hasattr(self, 'drag_start'):
-            drop_widget = event.widget.winfo_containing(event.x_root, event.y_root)
-            drop_index = self.image_objects.index(next(item for item in self.image_objects if item[0] == drop_widget))
-            self.image_objects[self.drag_start_index], self.image_objects[drop_index] = self.image_objects[drop_index], self.image_objects[self.drag_start_index]
-            for index, (widget, path) in enumerate(self.image_objects):
-                widget.pack_forget()
-                widget.pack(side='left', padx=5, pady=5)
-            self.drag_start = None
+    def update_image_order(self):
+        items = self.tree.get_children()
+        self.images = [self.tree.item(item, 'values')[0] for item in items]
+
+    def on_item_select(self, event):
+        self.update_image_order()
 
     def convert_to_pdf(self):
-        if not self.image_objects:
+        if not self.images:
             messagebox.showwarning("No Images Selected", "Please select images to convert.")
             return
 
@@ -104,7 +90,7 @@ class ImageToPDFApp(TkinterDnD.Tk):
 
         if pdf_path:
             image_objects = []
-            for idx, (widget, file_path) in enumerate(self.image_objects):
+            for idx, file_path in enumerate(self.images):
                 img = Image.open(file_path)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
@@ -115,9 +101,8 @@ class ImageToPDFApp(TkinterDnD.Tk):
 
     def clear_list(self):
         self.images = []
-        self.image_objects = []
-        for widget in self.image_frame.winfo_children():
-            widget.destroy()
+        self.tree.delete(*self.tree.get_children())
+        self.image_refs.clear()
 
 # Initialize the GUI application
 app = ImageToPDFApp()
