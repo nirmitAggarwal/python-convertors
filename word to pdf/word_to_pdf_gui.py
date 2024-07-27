@@ -1,76 +1,107 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from tkinterdnd2 import DND_FILES, TkinterDnD
-from ttkthemes import ThemedStyle
 from docx2pdf import convert
-import threading
+from threading import Thread
 import os
 
-class WordToPDFConverter:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Word to PDF Converter")
-        self.style = ThemedStyle(root)
-        self.style.set_theme("breeze")
-        self.files = []
+class WordToPDFConverter(TkinterDnD.Tk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("Word to PDF Converter")
+        self.geometry("600x400")
         
-        self.create_widgets()
-        self.root.drop_target_register(DND_FILES)
-        self.root.dnd_bind('<<Drop>>', self.add_files)
+        self.input_files = []
+        self.output_folder = os.getcwd()
 
-    def create_widgets(self):
-        self.frame = ttk.Frame(self.root, padding=10)
-        self.frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Input Frame
+        self.input_frame = tk.Frame(self)
+        self.input_frame.pack(pady=20)
 
-        self.add_button = ttk.Button(self.frame, text="Add Files", command=self.browse_files)
-        self.add_button.grid(row=0, column=0, padx=5, pady=5)
+        self.input_label = tk.Label(self.input_frame, text="Drag and Drop Files Here or Click 'Browse Files'")
+        self.input_label.pack()
 
-        self.convert_button = ttk.Button(self.frame, text="Convert", command=self.convert_files)
-        self.convert_button.grid(row=0, column=1, padx=5, pady=5)
+        self.browse_button = tk.Button(self.input_frame, text="Browse Files", command=self.browse_files)
+        self.browse_button.pack(pady=10)
 
-        self.progress = ttk.Progressbar(self.frame, orient="horizontal", mode="determinate")
-        self.progress.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.drop_files)
 
-        self.file_listbox = tk.Listbox(self.frame, selectmode=tk.MULTIPLE, height=10)
-        self.file_listbox.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+        # Output Frame
+        self.output_frame = tk.Frame(self)
+        self.output_frame.pack(pady=20)
+
+        self.output_label = tk.Label(self.output_frame, text=f"Output Folder: {self.output_folder}")
+        self.output_label.pack()
+
+        self.browse_output_button = tk.Button(self.output_frame, text="Browse Output Folder", command=self.browse_output_folder)
+        self.browse_output_button.pack(pady=10)
+
+        # Progress Frame
+        self.progress_frame = tk.Frame(self)
+        self.progress_frame.pack(pady=20)
+
+        self.progress_label = tk.Label(self.progress_frame, text="")
+        self.progress_label.pack()
+
+        self.progress_bar = ttk.Progressbar(self.progress_frame, orient="horizontal", length=300, mode="determinate")
+        self.progress_bar.pack()
+
+        # Convert Button
+        self.convert_button = tk.Button(self, text="Convert to PDF", command=self.convert_to_pdf)
+        self.convert_button.pack(pady=20)
 
     def browse_files(self):
-        files = filedialog.askopenfilenames(filetypes=[("Word Files", "*.docx")])
+        files = filedialog.askopenfilenames(filetypes=[("Word files", "*.docx")])
         if files:
-            self.add_files_to_list(files)
+            self.input_files.extend(files)
+            self.input_label.config(text=f"{len(self.input_files)} files selected")
 
-    def add_files(self, event):
-        files = self.root.tk.splitlist(event.data)
-        self.add_files_to_list(files)
+    def drop_files(self, event):
+        files = self.splitlist(event.data)
+        self.input_files.extend(files)
+        self.input_label.config(text=f"{len(self.input_files)} files selected")
 
-    def add_files_to_list(self, files):
-        for file in files:
-            if file not in self.files:
-                self.files.append(file)
-                self.file_listbox.insert(tk.END, file)
+    def browse_output_folder(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.output_folder = folder
+            self.output_label.config(text=f"Output Folder: {self.output_folder}")
 
-    def convert_files(self):
-        if not self.files:
-            messagebox.showwarning("No files", "Please add files to convert.")
+    def convert_to_pdf(self):
+        if not self.input_files:
+            messagebox.showwarning("No files selected", "Please select one or more DOCX files to convert.")
             return
 
-        self.progress["value"] = 0
-        self.progress["maximum"] = len(self.files)
+        self.progress_label.config(text="Conversion in progress...")
+        self.progress_bar["maximum"] = len(self.input_files)
+        self.progress_bar["value"] = 0
 
-        def conversion_task():
-            for file in self.files:
-                try:
-                    convert(file, os.path.splitext(file)[0] + ".pdf")
-                    self.progress["value"] += 1
-                except Exception as e:
-                    messagebox.showerror("Conversion error", str(e))
-                    self.progress["value"] += 1
-                    continue
-            messagebox.showinfo("Done", "Conversion completed.")
-        
-        threading.Thread(target=conversion_task).start()
+        self.convert_button.config(state="disabled")
+        self.browse_button.config(state="disabled")
+        self.browse_output_button.config(state="disabled")
+
+        thread = Thread(target=self.perform_conversion)
+        thread.start()
+
+    def perform_conversion(self):
+        try:
+            for idx, file in enumerate(self.input_files):
+                output_file = os.path.join(self.output_folder, os.path.basename(file).replace(".docx", ".pdf"))
+                convert(file, output_file)
+                self.progress_bar["value"] = idx + 1
+                self.update_idletasks()
+            
+            messagebox.showinfo("Conversion Complete", "All files have been converted to PDF.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred during conversion: {e}")
+        finally:
+            self.progress_label.config(text="")
+            self.convert_button.config(state="normal")
+            self.browse_button.config(state="normal")
+            self.browse_output_button.config(state="normal")
 
 if __name__ == "__main__":
-    root = TkinterDnD.Tk()
-    app = WordToPDFConverter(root)
-    root.mainloop()
+    app = WordToPDFConverter()
+    app.mainloop()
