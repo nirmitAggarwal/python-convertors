@@ -1,14 +1,13 @@
 import os
-from pdf2image import convert_from_path
+import fitz  # PyMuPDF
 
-def pdf_to_images(pdf_path, output_folder='output_images', poppler_path='./poppler-24.07.0/Library/bin'):
+def pdf_to_images(pdf_path, output_folder='./pdf to image/output_images'):
     """
     Converts each page of a PDF into images and stores them in a list.
     
     Args:
     - pdf_path (str): Path to the PDF file.
     - output_folder (str): Folder to save the images. Default is 'output_images'.
-    - poppler_path (str): Path to the poppler bin folder.
     
     Returns:
     - List of file paths to the saved images.
@@ -16,18 +15,21 @@ def pdf_to_images(pdf_path, output_folder='output_images', poppler_path='./poppl
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    images = convert_from_path(pdf_path, poppler_path=poppler_path)
+    pdf_document = fitz.open(pdf_path)
     image_files = []
     
-    for i, image in enumerate(images):
-        image_path = os.path.join(output_folder, f'page_{i + 1}.png')
-        image.save(image_path, 'PNG')
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)  # load page
+        pix = page.get_pixmap()  # render page to an image
+        image_path = os.path.join(output_folder, f'page_{page_num + 1}.png')
+        pix.save(image_path)
         image_files.append(image_path)
     
+    pdf_document.close()
     return image_files
 
 # Example usage
-pdf_path = 'sample.pdf'
+pdf_path = r'C:\Users\nirmit\Desktop\python convertors\pdf to image\sample.pdf'
 images = pdf_to_images(pdf_path)
 
 print("Images saved at:")
