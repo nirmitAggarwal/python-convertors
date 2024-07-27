@@ -1,5 +1,5 @@
 import os
-from tkinter import Tk, Canvas, filedialog, messagebox, PhotoImage, Scrollbar, HORIZONTAL, Frame
+from tkinter import Tk, Canvas, filedialog, messagebox, PhotoImage, Scrollbar, HORIZONTAL, Frame, Label
 from tkinter import ttk
 from tkinter.font import Font
 from PIL import Image, ImageTk
@@ -8,8 +8,8 @@ class ImageToPDFApp(Tk):
     def __init__(self):
         super().__init__()
         self.title("Image to PDF Converter")
-        self.geometry("800x600")
-        self.configure(bg='#2E2E2E')
+        self.geometry("900x650")
+        self.configure(bg='#1e1e1e')
 
         self.images = []
         self.image_objects = []
@@ -19,41 +19,45 @@ class ImageToPDFApp(Tk):
         style = ttk.Style(self)
         style.theme_use('clam')
 
-        style.configure('TButton', font=('Helvetica', 12, 'bold'), borderwidth=0, focusthickness=3, focuscolor='none')
-        style.configure('TFrame', background='#2E2E2E')
-        style.configure('TLabel', background='#2E2E2E', foreground='white', font=('Helvetica', 14, 'bold'))
-        style.map('TButton', foreground=[('pressed', 'white'), ('active', '#3C3F41')],
-                  background=[('pressed', '#4B4E50'), ('active', '#6C6F71')])
+        style.configure('TButton', font=('Arial', 12, 'bold'), borderwidth=0, focusthickness=3, focuscolor='none')
+        style.configure('TFrame', background='#1e1e1e')
+        style.configure('TLabel', background='#1e1e1e', foreground='white', font=('Arial', 14, 'bold'))
+        style.map('TButton', foreground=[('pressed', 'white'), ('active', '#ffffff')],
+                  background=[('pressed', '#3a3a3a'), ('active', '#3a3a3a')])
 
         # Custom Font
-        custom_font = Font(family="Helvetica", size=12, weight="bold")
+        custom_font = Font(family="Arial", size=12, weight="bold")
+
+        # Heading
+        heading = Label(self, text="Image to PDF Converter", font=('Arial', 24, 'bold'), fg='#ffffff', bg='#1e1e1e')
+        heading.pack(pady=20)
 
         # Frame for buttons
         button_frame = ttk.Frame(self)
         button_frame.pack(pady=10)
 
         # Browse Button
-        browse_button = ttk.Button(button_frame, text="Browse Images", command=self.browse_images)
+        browse_button = ttk.Button(button_frame, text="Browse Images", command=self.browse_images, style='TButton')
         browse_button.grid(row=0, column=0, padx=10)
 
         # Convert Button
-        convert_button = ttk.Button(button_frame, text="Convert", command=self.convert_to_pdf)
+        convert_button = ttk.Button(button_frame, text="Convert", command=self.convert_to_pdf, style='TButton')
         convert_button.grid(row=0, column=1, padx=10)
 
         # Clear Button
-        clear_button = ttk.Button(button_frame, text="Clear List", command=self.clear_list)
+        clear_button = ttk.Button(button_frame, text="Clear List", command=self.clear_list, style='TButton')
         clear_button.grid(row=0, column=2, padx=10)
 
         # Up Button
-        up_button = ttk.Button(button_frame, text="Move Up", command=self.move_up)
+        up_button = ttk.Button(button_frame, text="Move Up", command=self.move_up, style='TButton')
         up_button.grid(row=0, column=3, padx=10)
 
         # Down Button
-        down_button = ttk.Button(button_frame, text="Move Down", command=self.move_down)
+        down_button = ttk.Button(button_frame, text="Move Down", command=self.move_down, style='TButton')
         down_button.grid(row=0, column=4, padx=10)
 
         # Frame for canvas and scrollbar
-        canvas_frame = Frame(self, bg='#2E2E2E')
+        canvas_frame = Frame(self, bg='#1e1e1e')
         canvas_frame.pack(fill='both', expand=True)
 
         # Horizontal Scrollbar
@@ -61,7 +65,7 @@ class ImageToPDFApp(Tk):
         h_scrollbar.pack(side='bottom', fill='x')
 
         # Canvas for displaying images
-        self.canvas = Canvas(canvas_frame, bg='#2E2E2E', highlightthickness=0, xscrollcommand=h_scrollbar.set)
+        self.canvas = Canvas(canvas_frame, bg='#2e2e2e', highlightthickness=0, xscrollcommand=h_scrollbar.set)
         self.canvas.pack(pady=10, fill='both', expand=True)
         h_scrollbar.config(command=self.canvas.xview)
 
@@ -83,7 +87,7 @@ class ImageToPDFApp(Tk):
         tk_img = ImageTk.PhotoImage(img)
         x = len(self.image_objects) * 120 + 10
         item = self.canvas.create_image(x, 30, anchor='nw', image=tk_img)
-        index = self.canvas.create_text(x + 50, 140, text=str(len(self.image_objects) + 1), fill='white', font=('Helvetica', 10, 'bold'))
+        index = self.canvas.create_text(x + 50, 140, text=str(len(self.image_objects) + 1), fill='white', font=('Arial', 10, 'bold'))
         self.image_objects.append((item, tk_img, file_path, index))
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
