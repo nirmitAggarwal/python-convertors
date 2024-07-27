@@ -11,7 +11,6 @@ class ImageToPDFApp(TkinterDnD.Tk):
         self.geometry("800x600")
 
         self.images = []
-        self.image_ids = []
         self.image_objects = []
 
         # Browse Button
@@ -64,32 +63,32 @@ class ImageToPDFApp(TkinterDnD.Tk):
         img = Image.open(file_path)
         img.thumbnail((100, 100))
         tk_img = ImageTk.PhotoImage(img)
-        image_id = self.canvas.create_image(10, 10, anchor='nw', image=tk_img)
-        self.image_frame.update_idletasks()
-        self.image_ids.append(image_id)
-        self.image_objects.append((tk_img, file_path))
+        img_label = Button(self.image_frame, image=tk_img, text=os.path.basename(file_path), compound='top')
+        img_label.image = tk_img  # keep a reference!
+        img_label.pack(side='left', padx=5, pady=5)
+        self.image_objects.append((img_label, file_path))
 
     def start_drag(self, event):
-        self.drag_start = event.x, event.y
-        self.dragged_item = self.canvas.find_closest(event.x, event.y)[0]
-        self.dragged_index = self.image_ids.index(self.dragged_item)
+        widget = event.widget.winfo_containing(event.x_root, event.y_root)
+        if widget in [item[0] for item in self.image_objects]:
+            self.dragged_widget = widget
+            self.drag_start_index = self.image_objects.index(next(item for item in self.image_objects if item[0] == widget))
+            self.drag_start = event.x, event.y
 
     def on_drag_motion(self, event):
         if hasattr(self, 'drag_start'):
             dx = event.x - self.drag_start[0]
             dy = event.y - self.drag_start[1]
-            self.canvas.move(self.dragged_item, dx, dy)
-            self.drag_start = event.x, event.y
+            self.dragged_widget.place(x=event.x_root + dx, y=event.y_root + dy, anchor='center')
 
     def on_drop(self, event):
         if hasattr(self, 'drag_start'):
-            end_index = self.canvas.find_closest(event.x, event.y)[0]
-            end_index = self.image_ids.index(end_index)
-            if self.dragged_index != end_index:
-                # Swap images in the list
-                self.image_ids[self.dragged_index], self.image_ids[end_index] = self.image_ids[end_index], self.image_ids[self.dragged_index]
-                self.image_objects[self.dragged_index], self.image_objects[end_index] = self.image_objects[end_index], self.image_objects[self.dragged_index]
-            self.canvas.update_idletasks()
+            drop_widget = event.widget.winfo_containing(event.x_root, event.y_root)
+            drop_index = self.image_objects.index(next(item for item in self.image_objects if item[0] == drop_widget))
+            self.image_objects[self.drag_start_index], self.image_objects[drop_index] = self.image_objects[drop_index], self.image_objects[self.drag_start_index]
+            for index, (widget, path) in enumerate(self.image_objects):
+                widget.pack_forget()
+                widget.pack(side='left', padx=5, pady=5)
             self.drag_start = None
 
     def convert_to_pdf(self):
@@ -105,24 +104,20 @@ class ImageToPDFApp(TkinterDnD.Tk):
 
         if pdf_path:
             image_objects = []
-            self.progress_bar['maximum'] = len(self.image_objects)
-            for idx, (tk_img, file_path) in enumerate(self.image_objects):
+            for idx, (widget, file_path) in enumerate(self.image_objects):
                 img = Image.open(file_path)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
                 image_objects.append(img)
-                self.progress_bar['value'] = idx + 1
-                self.update_idletasks()
 
             image_objects[0].save(pdf_path, save_all=True, append_images=image_objects[1:])
             messagebox.showinfo("Success", f"Images have been successfully converted to {pdf_path}")
-            self.progress_bar['value'] = 0
 
     def clear_list(self):
         self.images = []
-        self.image_ids = []
         self.image_objects = []
-        self.canvas.delete("all")
+        for widget in self.image_frame.winfo_children():
+            widget.destroy()
 
 # Initialize the GUI application
 app = ImageToPDFApp()
