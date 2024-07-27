@@ -1,10 +1,8 @@
 import os
-from tkinter import Tk, Button, filedialog, messagebox, PhotoImage
-from tkinter import ttk
-from tkinterdnd2 import DND_FILES, TkinterDnD
+from tkinter import Tk, Button, Canvas, filedialog, messagebox, PhotoImage, Frame
 from PIL import Image, ImageTk
 
-class ImageToPDFApp(TkinterDnD.Tk):
+class ImageToPDFApp(Tk):
     def __init__(self):
         super().__init__()
         self.title("Image to PDF Converter")
@@ -25,17 +23,15 @@ class ImageToPDFApp(TkinterDnD.Tk):
         clear_button = Button(self, text="Clear List", command=self.clear_list)
         clear_button.pack(pady=10)
 
-        # Treeview for displaying images
-        self.tree = ttk.Treeview(self, columns=('Path'), show='tree')
-        self.tree.pack(pady=10, fill='both', expand=True)
-        self.tree.bind("<ButtonRelease-1>", self.on_item_select)
+        # Canvas for displaying images
+        self.canvas = Canvas(self, bg='white')
+        self.canvas.pack(pady=10, fill='both', expand=True)
 
-        self.tree.tag_configure('image', image=None)
-        self.tree.bind('<B1-Motion>', self.drag_motion)
-        self.tree.bind('<ButtonRelease-1>', self.drop_item)
+        self.canvas.bind("<ButtonPress-1>", self.on_image_press)
+        self.canvas.bind("<B1-Motion>", self.on_image_motion)
+        self.canvas.bind("<ButtonRelease-1>", self.on_image_release)
 
-        # Image references to avoid garbage collection
-        self.image_refs = []
+        self.drag_data = {"x": 0, "y": 0, "item": None}
 
     def browse_images(self):
         file_paths = filedialog.askopenfilenames(
@@ -51,34 +47,45 @@ class ImageToPDFApp(TkinterDnD.Tk):
         img = Image.open(file_path)
         img.thumbnail((100, 100))
         tk_img = ImageTk.PhotoImage(img)
-        self.image_refs.append(tk_img)  # keep a reference!
-        self.tree.insert('', 'end', text=os.path.basename(file_path), values=(file_path,), tags=('image',))
-        self.tree.tag_configure('image', image=tk_img)
+        x = len(self.image_objects) * 110 + 10
+        item = self.canvas.create_image(x, 10, anchor='nw', image=tk_img)
+        self.image_objects.append((item, tk_img, file_path))
 
-    def drag_motion(self, event):
-        self.tree.update_idletasks()
-        item = self.tree.identify('item', event.x, event.y)
-        self.tree.selection_set(item)
+    def on_image_press(self, event):
+        item = self.canvas.find_closest(event.x, event.y)[0]
+        self.drag_data["item"] = item
+        self.drag_data["x"] = event.x
+        self.drag_data["y"] = event.y
 
-    def drop_item(self, event):
-        item = self.tree.selection()[0]
-        target = self.tree.identify_row(event.y)
-        if target and target != item:
-            items = self.tree.get_children()
-            item_idx = items.index(item)
-            target_idx = items.index(target)
-            self.tree.move(item, '', target_idx if item_idx < target_idx else target_idx+1)
-            self.update_image_order()
+    def on_image_motion(self, event):
+        dx = event.x - self.drag_data["x"]
+        dy = event.y - self.drag_data["y"]
+        self.canvas.move(self.drag_data["item"], dx, dy)
+        self.drag_data["x"] = event.x
+        self.drag_data["y"] = event.y
 
-    def update_image_order(self):
-        items = self.tree.get_children()
-        self.images = [self.tree.item(item, 'values')[0] for item in items]
+    def on_image_release(self, event):
+        items = self.canvas.find_overlapping(event.x, event.y, event.x+1, event.y+1)
+        if len(items) > 1:
+            item1_idx = self.get_image_index(self.drag_data["item"])
+            item2_idx = self.get_image_index(items[0])
+            self.image_objects[item1_idx], self.image_objects[item2_idx] = self.image_objects[item2_idx], self.image_objects[item1_idx]
+            self.reorder_images()
+        self.drag_data["item"] = None
 
-    def on_item_select(self, event):
-        self.update_image_order()
+    def get_image_index(self, item):
+        for idx, (img_item, _, _) in enumerate(self.image_objects):
+            if img_item == item:
+                return idx
+        return None
+
+    def reorder_images(self):
+        for idx, (item, tk_img, _) in enumerate(self.image_objects):
+            x = idx * 110 + 10
+            self.canvas.coords(item, x, 10)
 
     def convert_to_pdf(self):
-        if not self.images:
+        if not self.image_objects:
             messagebox.showwarning("No Images Selected", "Please select images to convert.")
             return
 
@@ -90,7 +97,7 @@ class ImageToPDFApp(TkinterDnD.Tk):
 
         if pdf_path:
             image_objects = []
-            for idx, file_path in enumerate(self.images):
+            for _, _, file_path in self.image_objects:
                 img = Image.open(file_path)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
@@ -101,8 +108,8 @@ class ImageToPDFApp(TkinterDnD.Tk):
 
     def clear_list(self):
         self.images = []
-        self.tree.delete(*self.tree.get_children())
-        self.image_refs.clear()
+        self.image_objects = []
+        self.canvas.delete("all")
 
 # Initialize the GUI application
 app = ImageToPDFApp()
