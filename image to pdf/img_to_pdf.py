@@ -10,6 +10,24 @@ def browse_images():
     for file_path in file_paths:
         images_listbox.insert('end', file_path)
 
+def move_up():
+    selected_indices = images_listbox.curselection()
+    for idx in selected_indices:
+        if idx > 0:
+            file_path = images_listbox.get(idx)
+            images_listbox.delete(idx)
+            images_listbox.insert(idx-1, file_path)
+            images_listbox.selection_set(idx-1)
+
+def move_down():
+    selected_indices = images_listbox.curselection()
+    for idx in reversed(selected_indices):
+        if idx < images_listbox.size() - 1:
+            file_path = images_listbox.get(idx)
+            images_listbox.delete(idx)
+            images_listbox.insert(idx+1, file_path)
+            images_listbox.selection_set(idx+1)
+
 def convert_to_pdf():
     image_files = list(images_listbox.get(0, 'end'))
     if not image_files:
@@ -43,11 +61,17 @@ def clear_list():
 # Initialize the GUI application
 app = Tk()
 app.title("Image to PDF Converter")
-app.geometry("400x400")
+app.geometry("400x500")
 
 # Add buttons and listbox to the GUI
 browse_button = Button(app, text="Browse Images", command=browse_images)
 browse_button.pack(pady=10)
+
+move_up_button = Button(app, text="Move Up", command=move_up)
+move_up_button.pack(pady=10)
+
+move_down_button = Button(app, text="Move Down", command=move_down)
+move_down_button.pack(pady=10)
 
 clear_button = Button(app, text="Clear List", command=clear_list)
 clear_button.pack(pady=10)
