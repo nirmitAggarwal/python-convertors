@@ -4,6 +4,23 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from docx2pdf import convert
 from threading import Thread
 import os
+import requests
+
+# Function to add Google Fonts
+def fetch_google_font(font_name):
+    font_url = f"https://fonts.googleapis.com/css2?family={font_name.replace(' ', '+')}&display=swap"
+    try:
+        response = requests.get(font_url)
+        response.raise_for_status()
+        with open(f"{font_name.replace(' ', '_')}.css", "w") as f:
+            f.write(response.text)
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to fetch Google Font: {e}")
+        return False
+
+# Fetch the Google Font "Poppins"
+fetch_google_font("Poppins")
 
 class WordToPDFConverter(TkinterDnD.Tk):
     def __init__(self):
@@ -11,64 +28,70 @@ class WordToPDFConverter(TkinterDnD.Tk):
 
         self.title("Word to PDF Converter")
         self.geometry("600x400")
-        self.configure(bg="#1a1a1a")
+        self.configure(bg="#f0f4f8")
 
         self.input_files = []
         self.output_folder = os.getcwd()
 
         # Load custom font
-        self.font = ("Helvetica", 12)
+        self.font = ("Poppins", 12)
 
         # Input Frame
-        self.input_frame = tk.Frame(self, bg="#1a1a1a")
+        self.input_frame = tk.Frame(self, bg="#f0f4f8")
         self.input_frame.pack(pady=20)
 
-        self.input_label = tk.Label(self.input_frame, text="Drag and Drop Files Here or Click 'Browse Files'", font=self.font, fg="#39ff14", bg="#1a1a1a")
+        self.input_label = tk.Label(self.input_frame, text="Drag and Drop Files Here or Click 'Browse Files'", font=self.font, bg="#f0f4f8", fg="#333")
         self.input_label.pack()
 
-        self.browse_button = tk.Button(self.input_frame, text="Browse Files", command=self.browse_files, font=self.font, bg="#39ff14", fg="#000000", activebackground="#39ff14", activeforeground="#000000")
+        self.browse_button = tk.Button(self.input_frame, text="Browse Files", command=self.browse_files, font=self.font, bg="#3b82f6", fg="#fff", relief="flat", padx=20, pady=10, bd=5, highlightbackground="#3b82f6", highlightcolor="#3b82f6")
         self.browse_button.pack(pady=10)
+        self.add_neomorphism_effect(self.browse_button, inset=False)
 
         self.drop_target_register(DND_FILES)
         self.dnd_bind('<<Drop>>', self.drop_files)
 
         # Output Frame
-        self.output_frame = tk.Frame(self, bg="#1a1a1a")
+        self.output_frame = tk.Frame(self, bg="#f0f4f8")
         self.output_frame.pack(pady=20)
 
-        self.output_label = tk.Label(self.output_frame, text=f"Output Folder: {self.output_folder}", font=self.font, fg="#39ff14", bg="#1a1a1a")
+        self.output_label = tk.Label(self.output_frame, text=f"Output Folder: {self.output_folder}", font=self.font, bg="#f0f4f8", fg="#333")
         self.output_label.pack()
 
-        self.browse_output_button = tk.Button(self.output_frame, text="Browse Output Folder", command=self.browse_output_folder, font=self.font, bg="#39ff14", fg="#000000", activebackground="#39ff14", activeforeground="#000000")
+        self.browse_output_button = tk.Button(self.output_frame, text="Browse Output Folder", command=self.browse_output_folder, font=self.font, bg="#3b82f6", fg="#fff", relief="flat", padx=20, pady=10, bd=5, highlightbackground="#3b82f6", highlightcolor="#3b82f6")
         self.browse_output_button.pack(pady=10)
+        self.add_neomorphism_effect(self.browse_output_button, inset=False)
 
         # Progress Frame
-        self.progress_frame = tk.Frame(self, bg="#1a1a1a")
+        self.progress_frame = tk.Frame(self, bg="#f0f4f8")
         self.progress_frame.pack(pady=20)
 
-        self.progress_label = tk.Label(self.progress_frame, text="", font=self.font, fg="#39ff14", bg="#1a1a1a")
+        self.progress_label = tk.Label(self.progress_frame, text="", font=self.font, bg="#f0f4f8", fg="#333")
         self.progress_label.pack()
 
         self.progress_bar = ttk.Progressbar(self.progress_frame, orient="horizontal", length=300, mode="determinate")
         self.progress_bar.pack()
+        self.style_progress_bar()
 
         # Convert Button
-        self.convert_button = tk.Button(self, text="Convert to PDF", command=self.convert_to_pdf, font=self.font, bg="#39ff14", fg="#000000", activebackground="#39ff14", activeforeground="#000000")
+        self.convert_button = tk.Button(self, text="Convert to PDF", command=self.convert_to_pdf, font=self.font, bg="#3b82f6", fg="#fff", relief="flat", padx=20, pady=10, bd=5, highlightbackground="#3b82f6", highlightcolor="#3b82f6")
         self.convert_button.pack(pady=20)
+        self.add_neomorphism_effect(self.convert_button, inset=False)
 
-        # Style
+    def add_neomorphism_effect(self, widget, inset=True):
+        widget.config(bd=0, highlightthickness=0)
+        if inset:
+            widget.config(highlightbackground="#a5b4fc", highlightcolor="#a5b4fc")
+            widget.bind("<Enter>", lambda e: widget.config(bg="#2563eb", relief="sunken", highlightbackground="#a5b4fc", highlightcolor="#a5b4fc"))
+            widget.bind("<Leave>", lambda e: widget.config(bg="#3b82f6", relief="flat"))
+        else:
+            widget.config(highlightbackground="#a5b4fc", highlightcolor="#a5b4fc")
+            widget.bind("<Enter>", lambda e: widget.config(bg="#2563eb", relief="raised", highlightbackground="#a5b4fc", highlightcolor="#a5b4fc"))
+            widget.bind("<Leave>", lambda e: widget.config(bg="#3b82f6", relief="flat"))
+
+    def style_progress_bar(self):
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("TProgressbar", troughcolor="#1a1a1a", background="#39ff14", thickness=20)
-
-        # Adding hover effect
-        self.add_hover_effect(self.browse_button)
-        self.add_hover_effect(self.browse_output_button)
-        self.add_hover_effect(self.convert_button)
-
-    def add_hover_effect(self, widget):
-        widget.bind("<Enter>", lambda e: widget.config(bg="#00ff00"))
-        widget.bind("<Leave>", lambda e: widget.config(bg="#39ff14"))
+        style.configure("TProgressbar", troughcolor="#e0e7ff", background="#3b82f6", thickness=20, bordercolor="#f0f4f8", lightcolor="#f0f4f8", darkcolor="#f0f4f8")
 
     def browse_files(self):
         files = filedialog.askopenfilenames(filetypes=[("Word files", "*.docx")])
