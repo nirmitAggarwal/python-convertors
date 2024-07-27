@@ -1,5 +1,5 @@
 import os
-from tkinter import Tk, Canvas, filedialog, messagebox, PhotoImage
+from tkinter import Tk, Canvas, filedialog, messagebox, PhotoImage, Scrollbar, HORIZONTAL, Frame
 from tkinter import ttk
 from tkinter.font import Font
 from PIL import Image, ImageTk
@@ -13,6 +13,7 @@ class ImageToPDFApp(Tk):
 
         self.images = []
         self.image_objects = []
+        self.selected_image = None
 
         # Styling
         style = ttk.Style(self)
@@ -43,15 +44,28 @@ class ImageToPDFApp(Tk):
         clear_button = ttk.Button(button_frame, text="Clear List", command=self.clear_list)
         clear_button.grid(row=0, column=2, padx=10)
 
+        # Up Button
+        up_button = ttk.Button(button_frame, text="Move Up", command=self.move_up)
+        up_button.grid(row=0, column=3, padx=10)
+
+        # Down Button
+        down_button = ttk.Button(button_frame, text="Move Down", command=self.move_down)
+        down_button.grid(row=0, column=4, padx=10)
+
+        # Frame for canvas and scrollbar
+        canvas_frame = Frame(self, bg='#2E2E2E')
+        canvas_frame.pack(fill='both', expand=True)
+
+        # Horizontal Scrollbar
+        h_scrollbar = Scrollbar(canvas_frame, orient=HORIZONTAL)
+        h_scrollbar.pack(side='bottom', fill='x')
+
         # Canvas for displaying images
-        self.canvas = Canvas(self, bg='#2E2E2E', highlightthickness=0)
+        self.canvas = Canvas(canvas_frame, bg='#2E2E2E', highlightthickness=0, xscrollcommand=h_scrollbar.set)
         self.canvas.pack(pady=10, fill='both', expand=True)
+        h_scrollbar.config(command=self.canvas.xview)
 
         self.canvas.bind("<ButtonPress-1>", self.on_image_press)
-        self.canvas.bind("<B1-Motion>", self.on_image_motion)
-        self.canvas.bind("<ButtonRelease-1>", self.on_image_release)
-
-        self.drag_data = {"x": 0, "y": 0, "item": None}
 
     def browse_images(self):
         file_paths = filedialog.askopenfilenames(
@@ -67,42 +81,40 @@ class ImageToPDFApp(Tk):
         img = Image.open(file_path)
         img.thumbnail((100, 100))
         tk_img = ImageTk.PhotoImage(img)
-        x = len(self.image_objects) * 110 + 10
-        item = self.canvas.create_image(x, 10, anchor='nw', image=tk_img)
-        self.image_objects.append((item, tk_img, file_path))
+        x = len(self.image_objects) * 120 + 10
+        item = self.canvas.create_image(x, 30, anchor='nw', image=tk_img)
+        index = self.canvas.create_text(x + 50, 140, text=str(len(self.image_objects) + 1), fill='white', font=('Helvetica', 10, 'bold'))
+        self.image_objects.append((item, tk_img, file_path, index))
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def on_image_press(self, event):
-        item = self.canvas.find_closest(event.x, event.y)[0]
-        self.drag_data["item"] = item
-        self.drag_data["x"] = event.x
-        self.drag_data["y"] = event.y
+        closest_item = self.canvas.find_closest(event.x, event.y)[0]
+        for obj in self.image_objects:
+            if obj[0] == closest_item:
+                self.selected_image = obj
+                break
 
-    def on_image_motion(self, event):
-        dx = event.x - self.drag_data["x"]
-        dy = event.y - self.drag_data["y"]
-        self.canvas.move(self.drag_data["item"], dx, dy)
-        self.drag_data["x"] = event.x
-        self.drag_data["y"] = event.y
+    def move_up(self):
+        if self.selected_image:
+            idx = self.image_objects.index(self.selected_image)
+            if idx > 0:
+                self.image_objects[idx], self.image_objects[idx - 1] = self.image_objects[idx - 1], self.image_objects[idx]
+                self.reorder_images()
 
-    def on_image_release(self, event):
-        items = self.canvas.find_overlapping(event.x, event.y, event.x+1, event.y+1)
-        if len(items) > 1:
-            item1_idx = self.get_image_index(self.drag_data["item"])
-            item2_idx = self.get_image_index(items[0])
-            self.image_objects[item1_idx], self.image_objects[item2_idx] = self.image_objects[item2_idx], self.image_objects[item1_idx]
-            self.reorder_images()
-        self.drag_data["item"] = None
-
-    def get_image_index(self, item):
-        for idx, (img_item, _, _) in enumerate(self.image_objects):
-            if img_item == item:
-                return idx
-        return None
+    def move_down(self):
+        if self.selected_image:
+            idx = self.image_objects.index(self.selected_image)
+            if idx < len(self.image_objects) - 1:
+                self.image_objects[idx], self.image_objects[idx + 1] = self.image_objects[idx + 1], self.image_objects[idx]
+                self.reorder_images()
 
     def reorder_images(self):
-        for idx, (item, tk_img, _) in enumerate(self.image_objects):
-            x = idx * 110 + 10
-            self.canvas.coords(item, x, 10)
+        for idx, (item, tk_img, _, index) in enumerate(self.image_objects):
+            x = idx * 120 + 10
+            self.canvas.coords(item, x, 30)
+            self.canvas.coords(index, x + 50, 140)
+            self.canvas.itemconfig(index, text=str(idx + 1))
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def convert_to_pdf(self):
         if not self.image_objects:
@@ -117,7 +129,7 @@ class ImageToPDFApp(Tk):
 
         if pdf_path:
             image_objects = []
-            for _, _, file_path in self.image_objects:
+            for _, _, file_path, _ in self.image_objects:
                 img = Image.open(file_path)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
@@ -130,6 +142,7 @@ class ImageToPDFApp(Tk):
         self.images = []
         self.image_objects = []
         self.canvas.delete("all")
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
 # Initialize the GUI application
 app = ImageToPDFApp()
