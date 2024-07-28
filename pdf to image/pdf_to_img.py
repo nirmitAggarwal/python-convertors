@@ -1,7 +1,9 @@
 import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
 
-def pdf_to_images(pdf_path, output_folder='./pdf to image/output_images'):
+def pdf_to_images(pdf_path, output_folder='output_images'):
     """
     Converts each page of a PDF into images and stores them in a list.
     
@@ -28,10 +30,49 @@ def pdf_to_images(pdf_path, output_folder='./pdf to image/output_images'):
     pdf_document.close()
     return image_files
 
-# Example usage
-pdf_path = r'C:\Users\nirmit\Desktop\python convertors\pdf to image\sample.pdf'
-images = pdf_to_images(pdf_path)
+def select_pdf_file():
+    file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+    if file_path:
+        pdf_entry.delete(0, tk.END)
+        pdf_entry.insert(0, file_path)
 
-print("Images saved at:")
-for image_path in images:
-    print(image_path)
+def select_output_folder():
+    folder_path = filedialog.askdirectory()
+    if folder_path:
+        output_entry.delete(0, tk.END)
+        output_entry.insert(0, folder_path)
+
+def convert_pdf_to_images():
+    pdf_path = pdf_entry.get()
+    output_folder = output_entry.get()
+    if not pdf_path or not output_folder:
+        messagebox.showerror("Error", "Please select both a PDF file and an output folder.")
+        return
+
+    try:
+        images = pdf_to_images(pdf_path, output_folder)
+        messagebox.showinfo("Success", f"Images saved at: {', '.join(images)}")
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+
+# Create the main window
+root = tk.Tk()
+root.title("PDF to Image Converter")
+
+# PDF file selection
+tk.Label(root, text="Select PDF file:").grid(row=0, column=0, padx=10, pady=10, sticky=tk.W)
+pdf_entry = tk.Entry(root, width=50)
+pdf_entry.grid(row=0, column=1, padx=10, pady=10)
+tk.Button(root, text="Browse...", command=select_pdf_file).grid(row=0, column=2, padx=10, pady=10)
+
+# Output folder selection
+tk.Label(root, text="Select output folder:").grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
+output_entry = tk.Entry(root, width=50)
+output_entry.grid(row=1, column=1, padx=10, pady=10)
+tk.Button(root, text="Browse...", command=select_output_folder).grid(row=1, column=2, padx=10, pady=10)
+
+# Convert button
+tk.Button(root, text="Convert", command=convert_pdf_to_images).grid(row=2, column=0, columnspan=3, pady=20)
+
+# Start the GUI event loop
+root.mainloop()
