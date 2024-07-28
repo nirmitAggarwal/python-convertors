@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
-from tkdnd_wrapper import TkDND
+from tkinter_dnd import TkDND  # Import the custom TkDND class
 
 def pdf_to_images(pdf_path, output_folder='output_images'):
     """
@@ -57,8 +57,11 @@ def convert_pdf_to_images():
         messagebox.showerror("Error", str(e))
 
 def on_drop(event):
-    pdf_entry.delete(0, tk.END)
-    pdf_entry.insert(0, event.data)
+    # Handle the dropped file path
+    pdf_path = event.data.strip('{}')  # Remove the braces added by Tkinter
+    if pdf_path:
+        pdf_entry.delete(0, tk.END)
+        pdf_entry.insert(0, pdf_path)
 
 # Create the main window
 root = tk.Tk()
@@ -83,7 +86,7 @@ tk.Button(root, text="Browse...", command=select_output_folder).grid(row=1, colu
 tk.Button(root, text="Convert", command=convert_pdf_to_images).grid(row=2, column=0, columnspan=3, pady=20)
 
 # Set up drag-and-drop for the PDF entry
-dnd.bindtarget(pdf_entry, on_drop, 'text/uri-list')
+dnd.bindtarget(pdf_entry, on_drop, 'DND_Text')
 
 # Start the GUI event loop
 root.mainloop()
