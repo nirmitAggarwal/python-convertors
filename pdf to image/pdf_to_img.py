@@ -1,7 +1,7 @@
 import os
 import fitz  # PyMuPDF
 import zipfile
-from tkinter import Tk, Label, Button, Canvas, filedialog, messagebox
+from tkinter import Tk, Label, Button, Canvas, filedialog, messagebox, Frame
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image, ImageTk
 
@@ -55,14 +55,36 @@ def drop(event):
 root = TkinterDnD.Tk()
 root.title("PDF to Images Converter")
 
+# Set window size and background color
+root.geometry("400x300")
+root.config(bg="#2c3e50")
+
 # Create and place the widgets
-pdf_label = Label(root, text="Drag and drop a PDF file here or click 'Browse' to select a PDF", width=50, height=10, bg="white", relief="groove")
+frame = Frame(root, bg="#34495e", bd=2, relief="solid")
+frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+pdf_label = Label(frame, text="Drag and drop a PDF file here or click 'Browse' to select a PDF", 
+                  width=50, height=10, bg="white", relief="groove", wraplength=300)
 pdf_label.pack(padx=10, pady=10)
 pdf_label.drop_target_register(DND_FILES)
 pdf_label.dnd_bind('<<Drop>>', drop)
 
-browse_button = Button(root, text="Browse", command=browse_file)
-browse_button.pack(pady=5)
+# Style for the buttons
+button_style = {
+    "bg": "#3498db", 
+    "fg": "white", 
+    "activebackground": "#2980b9", 
+    "activeforeground": "white", 
+    "relief": "flat", 
+    "borderwidth": 0, 
+    "highlightthickness": 0,
+    "font": ("Helvetica", 10, "bold"),
+    "padx": 10,
+    "pady": 5
+}
+
+browse_button = Button(frame, text="Browse", command=browse_file, **button_style)
+browse_button.pack(pady=10)
 
 # Run the application
 root.mainloop()
