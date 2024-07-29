@@ -1,31 +1,41 @@
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+from fpdf import FPDF
 from tkinter import Tk, filedialog
-import os
+
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 12)
+        self.cell(0, 10, 'Text to PDF Conversion', 0, 1, 'C')
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+
+    def chapter_title(self, title):
+        self.set_font('Arial', 'B', 12)
+        self.cell(0, 10, title, 0, 1, 'L')
+        self.ln(10)
+
+    def chapter_body(self, body):
+        self.set_font('Arial', '', 12)
+        self.multi_cell(0, 10, body)
+        self.ln()
 
 def convert_text_to_pdf(text_path, output_path):
-    # Create a PDF canvas
-    c = canvas.Canvas(output_path, pagesize=letter)
-    width, height = letter
+    pdf = PDF()
+    pdf.add_page()
 
     # Open the text file
     with open(text_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
 
-    # Set the starting position
-    y_position = height - 40
-    line_height = 14
-
     # Add each line to the PDF
     for line in lines:
-        c.drawString(40, y_position, line.strip())
-        y_position -= line_height
-        if y_position <= 40:  # Move to next page if the bottom is reached
-            c.showPage()
-            y_position = height - 40
+        pdf.set_font('Arial', '', 12)
+        pdf.multi_cell(0, 10, line)
 
     # Save the PDF
-    c.save()
+    pdf.output(output_path)
 
 def main():
     root = Tk()
