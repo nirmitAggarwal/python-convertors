@@ -1,7 +1,9 @@
 import pandas as pd
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
+from ttkthemes import ThemedTk
+from tkinter import ttk
 
 def csv_to_excel(csv_file_path, excel_file_path, progress_bar):
     try:
@@ -50,15 +52,20 @@ def on_drop(event):
     else:
         messagebox.showwarning("Invalid file type", "Please drop a valid CSV or Excel file.")
 
-# Create the main window
-root = TkinterDnD.Tk()
+# Create the main window with a dark theme
+root = ThemedTk(theme="equilux")
 root.title("CSV to Excel Converter")
 
 # Style
-style = ttk.Style()
-style.theme_use('clam')
-style.configure("TButton", padding=6)
-style.configure("TEntry", padding=6)
+style = ttk.Style(root)
+root.configure(bg='#2b2b2b')
+
+style.configure("TLabel", foreground='#ffffff', background='#2b2b2b')
+style.configure("TButton", foreground='#ffffff', background='#444444', borderwidth=1, focusthickness=3, focuscolor='none')
+style.map("TButton", background=[('active', '#666666')])
+style.configure("TEntry", fieldbackground='#444444', foreground='#ffffff', borderwidth=1)
+style.map("TEntry", background=[('active', '#555555')])
+style.configure("TProgressbar", troughcolor='#444444', background='#00ff00', borderwidth=0)
 
 # CSV file selection
 csv_label = ttk.Label(root, text="Select CSV file:")
