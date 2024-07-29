@@ -1,6 +1,7 @@
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinterdnd2 import DND_FILES, TkinterDnD
 
 def csv_to_excel(csv_file_path, excel_file_path):
     try:
@@ -31,8 +32,19 @@ def convert_file():
     else:
         messagebox.showwarning("Input required", "Please select both CSV file and Excel file path.")
 
+def on_drop(event):
+    file_path = event.data
+    if file_path.lower().endswith('.csv'):
+        csv_entry.delete(0, tk.END)
+        csv_entry.insert(0, file_path)
+    elif file_path.lower().endswith('.xlsx'):
+        excel_entry.delete(0, tk.END)
+        excel_entry.insert(0, file_path)
+    else:
+        messagebox.showwarning("Invalid file type", "Please drop a valid CSV or Excel file.")
+
 # Create the main window
-root = tk.Tk()
+root = TkinterDnD.Tk()
 root.title("CSV to Excel Converter")
 
 # CSV file selection
@@ -54,6 +66,13 @@ excel_browse_button.grid(row=1, column=2, padx=10, pady=10)
 # Convert button
 convert_button = tk.Button(root, text="Convert", command=convert_file)
 convert_button.grid(row=2, columnspan=3, pady=20)
+
+# Enable drag-and-drop
+csv_entry.drop_target_register(DND_FILES)
+csv_entry.dnd_bind('<<Drop>>', on_drop)
+
+excel_entry.drop_target_register(DND_FILES)
+excel_entry.dnd_bind('<<Drop>>', on_drop)
 
 # Run the GUI event loop
 root.mainloop()
