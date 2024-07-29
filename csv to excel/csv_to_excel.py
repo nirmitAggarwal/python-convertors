@@ -1,7 +1,6 @@
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
 from ttkthemes import ThemedTk
 from tkinter import ttk
 
@@ -41,17 +40,6 @@ def convert_file():
     else:
         messagebox.showwarning("Input required", "Please select both CSV file and Excel file path.")
 
-def on_drop(event):
-    file_path = event.data
-    if file_path.lower().endswith('.csv'):
-        csv_entry.delete(0, tk.END)
-        csv_entry.insert(0, file_path)
-    elif file_path.lower().endswith('.xlsx'):
-        excel_entry.delete(0, tk.END)
-        excel_entry.insert(0, file_path)
-    else:
-        messagebox.showwarning("Invalid file type", "Please drop a valid CSV or Excel file.")
-
 # Create the main window with a dark theme
 root = ThemedTk(theme="equilux")
 root.title("CSV to Excel Converter")
@@ -61,7 +49,7 @@ style = ttk.Style(root)
 root.configure(bg='#2b2b2b')
 
 style.configure("TLabel", foreground='#ffffff', background='#2b2b2b')
-style.configure("TButton", foreground='#ffffff', background='#444444', borderwidth=1, focusthickness=3, focuscolor='none')
+style.configure("TButton", foreground='#ffffff', background='#444444', borderwidth=1, focusthickness=3, focuscolor='none', relief="flat")
 style.map("TButton", background=[('active', '#666666')])
 style.configure("TEntry", fieldbackground='#444444', foreground='#ffffff', borderwidth=1)
 style.map("TEntry", background=[('active', '#555555')])
@@ -90,13 +78,6 @@ convert_button.grid(row=2, columnspan=3, pady=20)
 # Progress bar
 progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
 progress_bar.grid(row=3, columnspan=3, pady=10)
-
-# Enable drag-and-drop
-csv_entry.drop_target_register(DND_FILES)
-csv_entry.dnd_bind('<<Drop>>', on_drop)
-
-excel_entry.drop_target_register(DND_FILES)
-excel_entry.dnd_bind('<<Drop>>', on_drop)
 
 # Run the GUI event loop
 root.mainloop()
