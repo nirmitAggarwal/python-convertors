@@ -1,93 +1,122 @@
 import os
+import tkinter as tk
+from tkinter import filedialog, messagebox, colorchooser
 from fpdf import FPDF
-from tkinter import Tk, Label, Button, filedialog, messagebox, Text, OptionMenu, StringVar, Scrollbar, Frame, Entry
+
 
 class PDF(FPDF):
     def header(self):
         if self.custom_header:
             self.set_font(self.font_style, 'B', self.font_size)
+            self.set_text_color(*self.text_color)
             self.cell(0, 10, self.custom_header, 0, 1, self.header_alignment)
 
     def footer(self):
         if self.custom_footer:
             self.set_y(-15)
             self.set_font(self.font_style, 'I', self.font_size)
+            self.set_text_color(*self.text_color)
             self.cell(0, 10, f'Page {self.page_no()} {self.custom_footer}', 0, 0, self.footer_alignment)
 
     def add_chapter_title(self, title):
         self.set_font(self.font_style, 'B', self.font_size)
+        self.set_text_color(*self.text_color)
         self.cell(0, 10, title, 0, 1, 'L')
         self.ln(10)
 
     def add_chapter_body(self, body):
         self.set_font(self.font_style, '', self.font_size)
-        self.multi_cell(0, 10, body)
+        self.set_text_color(*self.text_color)
+        self.multi_cell(0, self.line_height, body)
         self.ln()
+
 
 class TextToPDFConverter:
     def __init__(self, master):
         self.master = master
         master.title("Text to PDF Converter")
-        
+
+        # Font Styles and Alignments
         self.font_styles = ['Arial', 'Courier', 'Times']
         self.alignments = ['L', 'C', 'R']
+        self.page_sizes = ['A4', 'Letter']
 
-        self.label = Label(master, text="Convert your Text file to PDF")
-        self.label.pack(pady=10)
+        # Create UI Components
+        self.create_widgets()
+        self.load_settings()
 
-        self.select_button = Button(master, text="Select Text File", command=self.select_text_file)
+    def create_widgets(self):
+        tk.Label(self.master, text="Convert your Text file to PDF").pack(pady=10)
+
+        self.select_button = tk.Button(self.master, text="Select Text File", command=self.select_text_file)
         self.select_button.pack(pady=5)
 
-        self.preview_frame = Frame(master)
+        self.preview_frame = tk.Frame(self.master)
         self.preview_frame.pack(pady=5)
 
-        self.text_preview = Text(self.preview_frame, height=15, width=80)
+        self.text_preview = tk.Text(self.preview_frame, height=15, width=80)
         self.text_preview.pack(side="left", fill="both", expand=True)
 
-        self.scrollbar = Scrollbar(self.preview_frame, command=self.text_preview.yview)
+        self.scrollbar = tk.Scrollbar(self.preview_frame, command=self.text_preview.yview)
         self.scrollbar.pack(side="right", fill="y")
         self.text_preview.config(yscrollcommand=self.scrollbar.set)
 
-        self.font_label = Label(master, text="Select Font")
-        self.font_label.pack(pady=5)
-        self.font_var = StringVar(master)
+        tk.Label(self.master, text="Select Font").pack(pady=5)
+        self.font_var = tk.StringVar(self.master)
         self.font_var.set(self.font_styles[0])
-        self.font_menu = OptionMenu(master, self.font_var, *self.font_styles)
-        self.font_menu.pack(pady=5)
+        tk.OptionMenu(self.master, self.font_var, *self.font_styles).pack(pady=5)
 
-        self.font_size_label = Label(master, text="Font Size")
-        self.font_size_label.pack(pady=5)
-        self.font_size_entry = Entry(master)
+        tk.Label(self.master, text="Font Size").pack(pady=5)
+        self.font_size_entry = tk.Entry(self.master)
         self.font_size_entry.pack(pady=5)
         self.font_size_entry.insert(0, "12")
 
-        self.header_label = Label(master, text="Header Text")
-        self.header_label.pack(pady=5)
-        self.header_entry = Entry(master)
+        tk.Label(self.master, text="Header Text").pack(pady=5)
+        self.header_entry = tk.Entry(self.master)
         self.header_entry.pack(pady=5)
 
-        self.footer_label = Label(master, text="Footer Text")
-        self.footer_label.pack(pady=5)
-        self.footer_entry = Entry(master)
+        tk.Label(self.master, text="Footer Text").pack(pady=5)
+        self.footer_entry = tk.Entry(self.master)
         self.footer_entry.pack(pady=5)
 
-        self.alignment_label = Label(master, text="Text Alignment")
-        self.alignment_label.pack(pady=5)
-        self.alignment_var = StringVar(master)
+        tk.Label(self.master, text="Text Alignment").pack(pady=5)
+        self.alignment_var = tk.StringVar(self.master)
         self.alignment_var.set(self.alignments[0])
-        self.alignment_menu = OptionMenu(master, self.alignment_var, *self.alignments)
-        self.alignment_menu.pack(pady=5)
+        tk.OptionMenu(self.master, self.alignment_var, *self.alignments).pack(pady=5)
 
-        self.margin_label = Label(master, text="Margins (Left, Top, Right, Bottom)")
-        self.margin_label.pack(pady=5)
-        self.margin_entry = Entry(master)
+        tk.Label(self.master, text="Page Size").pack(pady=5)
+        self.page_size_var = tk.StringVar(self.master)
+        self.page_size_var.set(self.page_sizes[0])
+        tk.OptionMenu(self.master, self.page_size_var, *self.page_sizes).pack(pady=5)
+
+        tk.Label(self.master, text="Margins (Left, Top, Right, Bottom)").pack(pady=5)
+        self.margin_entry = tk.Entry(self.master)
         self.margin_entry.pack(pady=5)
         self.margin_entry.insert(0, "10,10,10,10")
 
-        self.convert_button = Button(master, text="Convert to PDF", command=self.convert_to_pdf, state="disabled")
+        tk.Label(self.master, text="Line Spacing").pack(pady=5)
+        self.line_spacing_entry = tk.Entry(self.master)
+        self.line_spacing_entry.pack(pady=5)
+        self.line_spacing_entry.insert(0, "10")
+
+        tk.Label(self.master, text="Text Color").pack(pady=5)
+        self.text_color_button = tk.Button(self.master, text="Choose Color", command=self.choose_text_color)
+        self.text_color_button.pack(pady=5)
+
+        tk.Label(self.master, text="Background Color").pack(pady=5)
+        self.bg_color_button = tk.Button(self.master, text="Choose Color", command=self.choose_bg_color)
+        self.bg_color_button.pack(pady=5)
+
+        self.convert_button = tk.Button(self.master, text="Convert to PDF", command=self.convert_to_pdf, state="disabled")
         self.convert_button.pack(pady=5)
 
         self.text_file_path = ""
+        self.text_color = (0, 0, 0)  # Default black
+        self.bg_color = (255, 255, 255)  # Default white
+
+    def load_settings(self):
+        # Load saved settings if available (e.g., from a config file)
+        pass
 
     def select_text_file(self):
         self.text_file_path = filedialog.askopenfilename(title="Select Text File", filetypes=(("Text files", "*.txt"),))
@@ -103,6 +132,16 @@ class TextToPDFConverter:
         with open(self.text_file_path, 'r', encoding='utf-8') as file:
             content = file.read()
             self.text_preview.insert('1.0', content)
+
+    def choose_text_color(self):
+        color = colorchooser.askcolor(title="Choose Text Color")[0]
+        if color:
+            self.text_color = tuple(map(int, color))
+
+    def choose_bg_color(self):
+        color = colorchooser.askcolor(title="Choose Background Color")[0]
+        if color:
+            self.bg_color = tuple(map(int, color))
 
     def convert_to_pdf(self):
         if not self.text_file_path:
@@ -124,6 +163,8 @@ class TextToPDFConverter:
         pdf.font_size = int(self.font_size_entry.get())
         pdf.header_alignment = self.alignment_var.get()
         pdf.footer_alignment = self.alignment_var.get()
+        pdf.text_color = self.text_color
+        pdf.line_height = int(self.line_spacing_entry.get())
 
         margins = list(map(int, self.margin_entry.get().split(',')))
         pdf.set_left_margin(margins[0])
@@ -131,7 +172,15 @@ class TextToPDFConverter:
         pdf.set_right_margin(margins[2])
         pdf.set_auto_page_break(auto=True, margin=margins[3])
 
-        pdf.add_page()
+        page_size = self.page_size_var.get()
+        if page_size == 'A4':
+            pdf.add_page('P', 'A4')
+        else:
+            pdf.add_page('P', 'Letter')
+
+        # Set background color
+        pdf.set_fill_color(*self.bg_color)
+        pdf.rect(0, 0, pdf.w, pdf.h, 'F')
 
         # Open the text file
         with open(text_path, 'r', encoding='utf-8') as file:
@@ -139,15 +188,14 @@ class TextToPDFConverter:
 
         # Add each line to the PDF
         for line in lines:
-            pdf.set_font(pdf.font_style, '', pdf.font_size)
-            pdf.multi_cell(0, 10, line, 0, pdf.header_alignment)
+            pdf.add_chapter_body(line)
 
         # Save the PDF
         pdf.output(output_path)
 
 
 def main():
-    root = Tk()
+    root = tk.Tk()
     converter = TextToPDFConverter(root)
     root.mainloop()
 
