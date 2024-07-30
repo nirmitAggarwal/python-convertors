@@ -6,7 +6,6 @@ from markdown.treeprocessors import Treeprocessor
 from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from pygments.formatters import HtmlFormatter
-from pygments.styles import get_all_styles
 from weasyprint import HTML
 
 class TitleExtractor(Treeprocessor):
@@ -20,6 +19,26 @@ class TitleExtractorExtension(Extension):
     def extendMarkdown(self, md):
         md.treeprocessors.register(TitleExtractor(md), 'title_extractor', 0)
 
+class CustomHTMLProcessor(Treeprocessor):
+    def __init__(self, md, custom_elements):
+        super().__init__(md)
+        self.custom_elements = custom_elements
+
+    def run(self, root):
+        for element, html in self.custom_elements.items():
+            for node in root.iter():
+                if node.tag == element:
+                    node.tag = 'div'
+                    node.set('class', html)
+
+class CustomHTMLExtension(Extension):
+    def __init__(self, **kwargs):
+        self.config = {'custom_elements': [{}, 'Custom HTML elements to replace']}
+        super().__init__(**kwargs)
+
+    def extendMarkdown(self, md):
+        md.treeprocessors.register(CustomHTMLProcessor(md, self.getConfig('custom_elements')), 'custom_html', 0)
+
 def extract_metadata(md_text):
     if md_text.startswith('---'):
         end = md_text.find('---', 3)
@@ -29,11 +48,12 @@ def extract_metadata(md_text):
             return metadata, md_text
     return {}, md_text
 
-def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=None):
+def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=None, custom_elements=None):
     extensions = [
         TitleExtractorExtension(),
         'fenced_code',
-        TocExtension(toc_depth="2-3")
+        TocExtension(toc_depth="2-3"),
+        CustomHTMLExtension(custom_elements=custom_elements)
     ]
     md = markdown.Markdown(extensions=extensions)
     html = md.convert(md_text)
@@ -59,6 +79,20 @@ def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=No
     </html>
     """
 
+def load_plugins(plugin_paths):
+    plugins = []
+    for path in plugin_paths:
+        if os.path.isfile(path):
+            spec = __import__(os.path.splitext(os.path.basename(path))[0])
+            if hasattr(spec, 'process'):
+                plugins.append(spec.process)
+    return plugins
+
+def apply_plugins(md_text, plugins):
+    for plugin in plugins:
+        md_text = plugin(md_text)
+    return md_text
+
 def main():
     parser = argparse.ArgumentParser(description="Convert Markdown to HTML or PDF.")
     parser.add_argument("markdown_file", help="Path to the Markdown file to convert.")
@@ -68,6 +102,8 @@ def main():
     parser.add_argument("--syntax-highlight", help="Syntax highlight style (default: default).", default="default")
     parser.add_argument("--metadata", help="Optional metadata in 'key:value' format.", nargs='*', default=None)
     parser.add_argument("--template", help="Optional custom HTML template file.", default=None)
+    parser.add_argument("--custom-elements", help="Custom elements in 'element:class' format.", nargs='*', default=None)
+    parser.add_argument("--plugins", help="Paths to custom plugin scripts.", nargs='*', default=None)
     args = parser.parse_args()
 
     if not os.path.isfile(args.markdown_file):
@@ -87,6 +123,16 @@ def main():
             key, value = item.split(':')
             metadata[key.strip()] = value.strip()
 
+    if args.plugins:
+        plugins = load_plugins(args.plugins)
+        md_text = apply_plugins(md_text, plugins)
+
+    custom_elements = {}
+    if args.custom_elements:
+        for item in args.custom_elements:
+            element, class_name = item.split(':')
+            custom_elements[element.strip()] = class_name.strip()
+
     inline_css = args.inline_css
 
     if args.css and os.path.isfile(args.css):
@@ -97,7 +143,7 @@ def main():
             print(f"Error reading CSS file {args.css}: {e}")
             exit(1)
 
-    title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight)
+    title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight, custom_elements)
 
     metadata_html = "\n".join([f'<meta name="{k}" content="{v}">' for k, v in metadata.items()])
 
@@ -111,6 +157,10 @@ def main():
             exit(1)
     else:
         full_html = full_html.replace('</head>', f'{metadata_html}\n</head>')
+
+    output_dir = os.path.dirname(args.output_file)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     if args.output_file.lower().endswith('.html'):
         try:
