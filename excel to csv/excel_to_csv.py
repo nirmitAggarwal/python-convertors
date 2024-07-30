@@ -1,5 +1,6 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk, font
+from tkinter import filedialog, messagebox, ttk
+from tkinterdnd2 import DND_FILES, TkinterDnD
 import pandas as pd
 import os
 
@@ -44,13 +45,8 @@ def convert_file():
 
     excel_to_csv(excel_file_path.get(), sheet_name, csv_file_path.get(), progress_var)
 
-def on_drag(event):
-    event.widget.config(bg='#4f4f4f')
-
 def on_drop(event):
-    event.widget.config(bg='#4f4f4f')
-    file_path = event.data
-    excel_file_path.set(file_path)
+    excel_file_path.set(event.data)
 
 def create_tooltip(widget, text):
     tooltip = tk.Toplevel(widget, bg="yellow", padx=1, pady=1)
@@ -63,7 +59,7 @@ def create_tooltip(widget, text):
     widget.bind("<Leave>", lambda e: tooltip.withdraw())
 
 # Create the main window
-root = tk.Tk()
+root = TkinterDnD.Tk()
 root.title("Excel to CSV Converter")
 root.geometry("500x350")
 root.resizable(False, False)
@@ -107,7 +103,7 @@ progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100)
 progress_bar.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
 
 # Bind drag and drop events
-excel_entry.drop_target_register(tk.DND_FILES)
+excel_entry.drop_target_register(DND_FILES)
 excel_entry.dnd_bind('<<Drop>>', on_drop)
 
 # Run the GUI event loop
