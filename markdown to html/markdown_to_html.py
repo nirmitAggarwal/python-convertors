@@ -7,6 +7,7 @@ from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from pygments.formatters import HtmlFormatter
 from weasyprint import HTML
+import re
 
 class TitleExtractor(Treeprocessor):
     def run(self, root):
@@ -39,6 +40,35 @@ class CustomHTMLExtension(Extension):
     def extendMarkdown(self, md):
         md.treeprocessors.register(CustomHTMLProcessor(md, self.getConfig('custom_elements')), 'custom_html', 0)
 
+class ShortcodeProcessor(Treeprocessor):
+    def __init__(self, md, shortcodes):
+        super().__init__(md)
+        self.shortcodes = shortcodes
+
+    def run(self, root):
+        self.process_element(root)
+
+    def process_element(self, element):
+        if element.text:
+            element.text = self.replace_shortcodes(element.text)
+        if element.tail:
+            element.tail = self.replace_shortcodes(element.tail)
+        for child in element:
+            self.process_element(child)
+
+    def replace_shortcodes(self, text):
+        for shortcode, replacement in self.shortcodes.items():
+            text = re.sub(r'\[\[' + re.escape(shortcode) + r'\]\]', replacement, text)
+        return text
+
+class ShortcodeExtension(Extension):
+    def __init__(self, **kwargs):
+        self.config = {'shortcodes': [{}, 'Shortcodes to replace']}
+        super().__init__(**kwargs)
+
+    def extendMarkdown(self, md):
+        md.treeprocessors.register(ShortcodeProcessor(md, self.getConfig('shortcodes')), 'shortcodes', 0)
+
 def extract_metadata(md_text):
     if md_text.startswith('---'):
         end = md_text.find('---', 3)
@@ -48,12 +78,13 @@ def extract_metadata(md_text):
             return metadata, md_text
     return {}, md_text
 
-def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=None, custom_elements=None):
+def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=None, custom_elements=None, shortcodes=None):
     extensions = [
         TitleExtractorExtension(),
         'fenced_code',
         TocExtension(toc_depth="2-3"),
-        CustomHTMLExtension(custom_elements=custom_elements)
+        CustomHTMLExtension(custom_elements=custom_elements),
+        ShortcodeExtension(shortcodes=shortcodes)
     ]
     md = markdown.Markdown(extensions=extensions)
     html = md.convert(md_text)
@@ -93,22 +124,24 @@ def apply_plugins(md_text, plugins):
         md_text = plugin(md_text)
     return md_text
 
+def validate_file_path(file_path, description, must_exist=True):
+    if must_exist and not os.path.isfile(file_path):
+        raise argparse.ArgumentTypeError(f"{description} '{file_path}' does not exist.")
+    return file_path
+
 def main():
     parser = argparse.ArgumentParser(description="Convert Markdown to HTML or PDF.")
-    parser.add_argument("markdown_file", help="Path to the Markdown file to convert.")
+    parser.add_argument("markdown_file", type=lambda x: validate_file_path(x, "Markdown file"), help="Path to the Markdown file to convert.")
     parser.add_argument("output_file", help="Path to save the output file (HTML or PDF).")
-    parser.add_argument("--css", help="Optional CSS file to link in the HTML.", default=None)
+    parser.add_argument("--css", type=lambda x: validate_file_path(x, "CSS file"), help="Optional CSS file to link in the HTML.", default=None)
     parser.add_argument("--inline-css", help="Optional inline CSS styles to include in the HTML.", default=None)
     parser.add_argument("--syntax-highlight", help="Syntax highlight style (default: default).", default="default")
     parser.add_argument("--metadata", help="Optional metadata in 'key:value' format.", nargs='*', default=None)
-    parser.add_argument("--template", help="Optional custom HTML template file.", default=None)
+    parser.add_argument("--template", type=lambda x: validate_file_path(x, "Template file"), help="Optional custom HTML template file.", default=None)
     parser.add_argument("--custom-elements", help="Custom elements in 'element:class' format.", nargs='*', default=None)
-    parser.add_argument("--plugins", help="Paths to custom plugin scripts.", nargs='*', default=None)
+    parser.add_argument("--shortcodes", help="Shortcodes in 'shortcode:replacement' format.", nargs='*', default=None)
+    parser.add_argument("--plugins", type=lambda x: validate_file_path(x, "Plugin file"), help="Paths to custom plugin scripts.", nargs='*', default=None)
     args = parser.parse_args()
-
-    if not os.path.isfile(args.markdown_file):
-        print(f"Error: The file {args.markdown_file} does not exist.")
-        exit(1)
 
     try:
         with open(args.markdown_file, 'r', encoding='utf-8') as file:
@@ -133,9 +166,15 @@ def main():
             element, class_name = item.split(':')
             custom_elements[element.strip()] = class_name.strip()
 
+    shortcodes = {}
+    if args.shortcodes:
+        for item in args.shortcodes:
+            shortcode, replacement = item.split(':')
+            shortcodes[shortcode.strip()] = replacement.strip()
+
     inline_css = args.inline_css
 
-    if args.css and os.path.isfile(args.css):
+    if args.css:
         try:
             with open(args.css, 'r', encoding='utf-8') as css_file:
                 inline_css = css_file.read()
@@ -143,11 +182,11 @@ def main():
             print(f"Error reading CSS file {args.css}: {e}")
             exit(1)
 
-    title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight, custom_elements)
+    title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight, custom_elements, shortcodes)
 
     metadata_html = "\n".join([f'<meta name="{k}" content="{v}">' for k, v in metadata.items()])
 
-    if args.template and os.path.isfile(args.template):
+    if args.template:
         try:
             with open(args.template, 'r', encoding='utf-8') as template_file:
                 template = template_file.read()
@@ -162,23 +201,18 @@ def main():
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    if args.output_file.lower().endswith('.html'):
-        try:
+    try:
+        if args.output_file.lower().endswith('.html'):
             with open(args.output_file, 'w', encoding='utf-8') as file:
                 file.write(full_html)
-        except Exception as e:
-            print(f"Error writing to {args.output_file}: {e}")
-            exit(1)
-        print(f"Conversion successful! HTML file saved as {args.output_file}")
-    elif args.output_file.lower().endswith('.pdf'):
-        try:
+            print(f"Conversion successful! HTML file saved as {args.output_file}")
+        elif args.output_file.lower().endswith('.pdf'):
             HTML(string=full_html).write_pdf(args.output_file)
-        except Exception as e:
-            print(f"Error writing to {args.output_file}: {e}")
-            exit(1)
-        print(f"Conversion successful! PDF file saved as {args.output_file}")
-    else:
-        print(f"Error: Unsupported output file format. Please use .html or .pdf.")
+            print(f"Conversion successful! PDF file saved as {args.output_file}")
+        else:
+            raise ValueError("Unsupported output file format. Please use .html or .pdf.")
+    except Exception as e:
+        print(f"Error writing to {args.output_file}: {e}")
         exit(1)
 
 if __name__ == "__main__":
