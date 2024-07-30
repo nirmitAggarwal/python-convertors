@@ -8,6 +8,9 @@ from markdown.extensions.toc import TocExtension
 from pygments.formatters import HtmlFormatter
 from weasyprint import HTML
 import re
+import importlib.util
+from flask import Flask, render_template_string, request
+import threading
 
 class TitleExtractor(Treeprocessor):
     def run(self, root):
@@ -114,9 +117,11 @@ def load_plugins(plugin_paths):
     plugins = []
     for path in plugin_paths:
         if os.path.isfile(path):
-            spec = __import__(os.path.splitext(os.path.basename(path))[0])
-            if hasattr(spec, 'process'):
-                plugins.append(spec.process)
+            spec = importlib.util.spec_from_file_location("plugin", path)
+            plugin = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(plugin)
+            if hasattr(plugin, 'process'):
+                plugins.append(plugin.process)
     return plugins
 
 def apply_plugins(md_text, plugins):
@@ -129,7 +134,35 @@ def validate_file_path(file_path, description, must_exist=True):
         raise argparse.ArgumentTypeError(f"{description} '{file_path}' does not exist.")
     return file_path
 
+app = Flask(__name__)
+md_file_path = None
+css_content = None
+syntax_highlight_style = None
+custom_elements = None
+shortcodes = None
+plugins = []
+
+@app.route('/')
+def index():
+    if not md_file_path:
+        return "Markdown file not specified."
+    try:
+        with open(md_file_path, 'r', encoding='utf-8') as file:
+            md_text = file.read()
+    except Exception as e:
+        return f"Error reading {md_file_path}: {e}"
+
+    metadata, md_text = extract_metadata(md_text)
+    md_text = apply_plugins(md_text, plugins)
+    title, html_content = convert_markdown_to_html(md_text, css_content, syntax_highlight_style, custom_elements, shortcodes)
+    return render_template_string(html_content)
+
+def run_server():
+    app.run(debug=True, use_reloader=False)
+
 def main():
+    global md_file_path, css_content, syntax_highlight_style, custom_elements, shortcodes, plugins
+
     parser = argparse.ArgumentParser(description="Convert Markdown to HTML or PDF.")
     parser.add_argument("markdown_file", type=lambda x: validate_file_path(x, "Markdown file"), help="Path to the Markdown file to convert.")
     parser.add_argument("output_file", help="Path to save the output file (HTML or PDF).")
@@ -141,16 +174,17 @@ def main():
     parser.add_argument("--custom-elements", help="Custom elements in 'element:class' format.", nargs='*', default=None)
     parser.add_argument("--shortcodes", help="Shortcodes in 'shortcode:replacement' format.", nargs='*', default=None)
     parser.add_argument("--plugins", type=lambda x: validate_file_path(x, "Plugin file"), help="Paths to custom plugin scripts.", nargs='*', default=None)
+    parser.add_argument("--live-preview", action='store_true', help="Enable live preview server.")
     args = parser.parse_args()
 
     try:
         with open(args.markdown_file, 'r', encoding='utf-8') as file:
-            md_text = file.read()
+            md_file_path = args.markdown_file
     except Exception as e:
         print(f"Error reading {args.markdown_file}: {e}")
         exit(1)
 
-    metadata, md_text = extract_metadata(md_text)
+    metadata, _ = extract_metadata(md_file_path)
     if args.metadata:
         for item in args.metadata:
             key, value = item.split(':')
@@ -158,7 +192,6 @@ def main():
 
     if args.plugins:
         plugins = load_plugins(args.plugins)
-        md_text = apply_plugins(md_text, plugins)
 
     custom_elements = {}
     if args.custom_elements:
@@ -172,17 +205,23 @@ def main():
             shortcode, replacement = item.split(':')
             shortcodes[shortcode.strip()] = replacement.strip()
 
-    inline_css = args.inline_css
+    css_content = args.inline_css
 
     if args.css:
         try:
             with open(args.css, 'r', encoding='utf-8') as css_file:
-                inline_css = css_file.read()
+                css_content = css_file.read()
         except Exception as e:
             print(f"Error reading CSS file {args.css}: {e}")
             exit(1)
 
-    title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight, custom_elements, shortcodes)
+    if args.live_preview:
+        server_thread = threading.Thread(target=run_server)
+        server_thread.start()
+        print(f"Live preview server started at http://127.0.0.1:5000")
+        return
+
+    title, full_html = convert_markdown_to_html(md_file_path, css_content, args.syntax_highlight, custom_elements, shortcodes)
 
     metadata_html = "\n".join([f'<meta name="{k}" content="{v}">' for k, v in metadata.items()])
 
@@ -190,30 +229,21 @@ def main():
         try:
             with open(args.template, 'r', encoding='utf-8') as template_file:
                 template = template_file.read()
-                full_html = template.replace("{{title}}", title).replace("{{metadata}}", metadata_html).replace("{{content}}", full_html)
+                full_html = template.replace("{{content}}", full_html).replace("{{metadata}}", metadata_html)
         except Exception as e:
             print(f"Error reading template file {args.template}: {e}")
             exit(1)
+
+    if args.output_file.endswith('.pdf'):
+        HTML(string=full_html).write_pdf(args.output_file)
     else:
-        full_html = full_html.replace('</head>', f'{metadata_html}\n</head>')
-
-    output_dir = os.path.dirname(args.output_file)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    try:
-        if args.output_file.lower().endswith('.html'):
-            with open(args.output_file, 'w', encoding='utf-8') as file:
-                file.write(full_html)
-            print(f"Conversion successful! HTML file saved as {args.output_file}")
-        elif args.output_file.lower().endswith('.pdf'):
-            HTML(string=full_html).write_pdf(args.output_file)
-            print(f"Conversion successful! PDF file saved as {args.output_file}")
-        else:
-            raise ValueError("Unsupported output file format. Please use .html or .pdf.")
-    except Exception as e:
-        print(f"Error writing to {args.output_file}: {e}")
-        exit(1)
+        try:
+            with open(args.output_file, 'w', encoding='utf-8') as output_file:
+                output_file.write(full_html)
+            print(f"Converted HTML saved to {args.output_file}")
+        except Exception as e:
+            print(f"Error saving output file {args.output_file}: {e}")
+            exit(1)
 
 if __name__ == "__main__":
     main()
