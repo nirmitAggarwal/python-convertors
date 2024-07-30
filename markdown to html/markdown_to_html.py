@@ -3,7 +3,11 @@ import os
 import argparse
 from markdown.treeprocessors import Treeprocessor
 from markdown.extensions import Extension
-from weasyprint import HTML  # For PDF conversion
+from markdown.extensions.toc import TocExtension
+from pygments.formatters import HtmlFormatter
+from pygments.styles import get_all_styles
+from weasyprint import HTML
+from datetime import datetime
 
 class TitleExtractor(Treeprocessor):
     def run(self, root):
@@ -16,11 +20,20 @@ class TitleExtractorExtension(Extension):
     def extendMarkdown(self, md):
         md.treeprocessors.register(TitleExtractor(md), 'title_extractor', 0)
 
-def convert_markdown_to_html(md_text, inline_css=None):
-    md = markdown.Markdown(extensions=[TitleExtractorExtension()])
+def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=None):
+    extensions = [
+        TitleExtractorExtension(),
+        'fenced_code',
+        TocExtension(toc_depth="2-3")
+    ]
+    md = markdown.Markdown(extensions=extensions)
     html = md.convert(md_text)
     title = getattr(md, 'title', 'Converted Markdown')
     css = f"<style>{inline_css}</style>" if inline_css else ''
+
+    if syntax_highlight_style:
+        css += f"<style>{HtmlFormatter(style=syntax_highlight_style).get_style_defs('.highlight')}</style>"
+
     return title, f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -31,6 +44,7 @@ def convert_markdown_to_html(md_text, inline_css=None):
         {css}
     </head>
     <body>
+        <div class="toc">{md.toc}</div>
         {html}
     </body>
     </html>
@@ -42,6 +56,8 @@ def main():
     parser.add_argument("output_file", help="Path to save the output file (HTML or PDF).")
     parser.add_argument("--css", help="Optional CSS file to link in the HTML.", default=None)
     parser.add_argument("--inline-css", help="Optional inline CSS styles to include in the HTML.", default=None)
+    parser.add_argument("--syntax-highlight", help="Syntax highlight style (default: default).", default="default")
+    parser.add_argument("--metadata", help="Optional metadata in 'key:value' format.", nargs='*', default=None)
     args = parser.parse_args()
 
     if not os.path.isfile(args.markdown_file):
@@ -55,7 +71,21 @@ def main():
         print(f"Error reading {args.markdown_file}: {e}")
         exit(1)
 
-    title, full_html = convert_markdown_to_html(md_text, args.inline_css)
+    inline_css = args.inline_css
+
+    if args.css and os.path.isfile(args.css):
+        try:
+            with open(args.css, 'r', encoding='utf-8') as css_file:
+                inline_css = css_file.read()
+        except Exception as e:
+            print(f"Error reading CSS file {args.css}: {e}")
+            exit(1)
+
+    title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight)
+
+    if args.metadata:
+        metadata_html = "\n".join([f'<meta name="{k.strip()}" content="{v.strip()}">' for k, v in (item.split(':') for item in args.metadata)])
+        full_html = full_html.replace('</head>', f'{metadata_html}\n</head>')
 
     if args.output_file.lower().endswith('.html'):
         try:
