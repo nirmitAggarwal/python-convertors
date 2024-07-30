@@ -1,13 +1,13 @@
 import markdown
 import os
 import argparse
+import yaml
 from markdown.treeprocessors import Treeprocessor
 from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from pygments.formatters import HtmlFormatter
 from pygments.styles import get_all_styles
 from weasyprint import HTML
-from datetime import datetime
 
 class TitleExtractor(Treeprocessor):
     def run(self, root):
@@ -19,6 +19,15 @@ class TitleExtractor(Treeprocessor):
 class TitleExtractorExtension(Extension):
     def extendMarkdown(self, md):
         md.treeprocessors.register(TitleExtractor(md), 'title_extractor', 0)
+
+def extract_metadata(md_text):
+    if md_text.startswith('---'):
+        end = md_text.find('---', 3)
+        if end != -1:
+            metadata = yaml.safe_load(md_text[3:end])
+            md_text = md_text[end+3:]
+            return metadata, md_text
+    return {}, md_text
 
 def convert_markdown_to_html(md_text, inline_css=None, syntax_highlight_style=None):
     extensions = [
@@ -58,6 +67,7 @@ def main():
     parser.add_argument("--inline-css", help="Optional inline CSS styles to include in the HTML.", default=None)
     parser.add_argument("--syntax-highlight", help="Syntax highlight style (default: default).", default="default")
     parser.add_argument("--metadata", help="Optional metadata in 'key:value' format.", nargs='*', default=None)
+    parser.add_argument("--template", help="Optional custom HTML template file.", default=None)
     args = parser.parse_args()
 
     if not os.path.isfile(args.markdown_file):
@@ -71,6 +81,12 @@ def main():
         print(f"Error reading {args.markdown_file}: {e}")
         exit(1)
 
+    metadata, md_text = extract_metadata(md_text)
+    if args.metadata:
+        for item in args.metadata:
+            key, value = item.split(':')
+            metadata[key.strip()] = value.strip()
+
     inline_css = args.inline_css
 
     if args.css and os.path.isfile(args.css):
@@ -83,8 +99,17 @@ def main():
 
     title, full_html = convert_markdown_to_html(md_text, inline_css, args.syntax_highlight)
 
-    if args.metadata:
-        metadata_html = "\n".join([f'<meta name="{k.strip()}" content="{v.strip()}">' for k, v in (item.split(':') for item in args.metadata)])
+    metadata_html = "\n".join([f'<meta name="{k}" content="{v}">' for k, v in metadata.items()])
+
+    if args.template and os.path.isfile(args.template):
+        try:
+            with open(args.template, 'r', encoding='utf-8') as template_file:
+                template = template_file.read()
+                full_html = template.replace("{{title}}", title).replace("{{metadata}}", metadata_html).replace("{{content}}", full_html)
+        except Exception as e:
+            print(f"Error reading template file {args.template}: {e}")
+            exit(1)
+    else:
         full_html = full_html.replace('</head>', f'{metadata_html}\n</head>')
 
     if args.output_file.lower().endswith('.html'):
