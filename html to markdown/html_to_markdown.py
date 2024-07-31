@@ -10,7 +10,8 @@ def html_to_markdown(html):
     Convert HTML content to Markdown format.
     
     This function handles headings, paragraphs, bold, italic, links, images,
-    blockquotes, lists, code blocks, horizontal rules, tables, and inline styles.
+    blockquotes, lists, code blocks, horizontal rules, tables, inline styles,
+    and forms.
 
     Args:
     html (str): HTML content as a string.
@@ -47,6 +48,7 @@ def html_to_markdown(html):
     markdown = handle_blockquotes(markdown)
     markdown = handle_tables(markdown)
     markdown = handle_inline_styles(markdown)
+    markdown = handle_forms(markdown)
 
     return markdown
 
@@ -193,7 +195,7 @@ def convert_table(match):
 
 def handle_inline_styles(markdown):
     """
-    Handle conversion of inline styles (such as color and font size).
+    Handle conversion of inline styles (such as color, font size, text alignment, font weight).
     
     Args:
     markdown (str): Markdown content as a string.
@@ -203,52 +205,97 @@ def handle_inline_styles(markdown):
     """
     style_pattern = re.compile(r'<span style=".*?">(.*?)</span>', re.DOTALL)
     markdown = style_pattern.sub(r'\1', markdown)
+    
+    # Handle additional inline styles
+    markdown = re.sub(r'<span style="font-weight: bold;">(.*?)</span>', r'**\1**', markdown)
+    markdown = re.sub(r'<span style="font-weight: normal;">(.*?)</span>', r'\1', markdown)
+    markdown = re.sub(r'<span style="text-align: center;">(.*?)</span>', r'\n<center>\1</center>\n', markdown)
+    markdown = re.sub(r'<span style="text-align: right;">(.*?)</span>', r'\n<div align="right">\1</div>\n', markdown)
+    
     return markdown
+
+def handle_forms(markdown):
+    """
+    Handle conversion of HTML forms to Markdown format.
+    
+    Args:
+    markdown (str): Markdown content as a string.
+
+    Returns:
+    str: Markdown content with forms properly formatted.
+    """
+    form_pattern = re.compile(r'<form[^>]*>(.*?)</form>', re.DOTALL)
+    markdown = form_pattern.sub(convert_form, markdown)
+    return markdown
+
+def convert_form(match):
+    """
+    Helper function to convert HTML forms to Markdown format.
+    
+    Args:
+    match (re.Match): Regex match object.
+
+    Returns:
+    str: Formatted form in Markdown.
+    """
+    form_html = match.group(1)
+    inputs = re.findall(r'<input[^>]*>', form_html)
+    textareas = re.findall(r'<textarea[^>]*>(.*?)</textarea>', form_html, re.DOTALL)
+    buttons = re.findall(r'<button[^>]*>(.*?)</button>', form_html, re.DOTALL)
+
+    form_md = []
+    for input_tag in inputs:
+        input_type = re.search(r'type="([^"]*)"', input_tag)
+        input_name = re.search(r'name="([^"]*)"', input_tag)
+        if input_type and input_name:
+            form_md.append(f'Input: {input_name.group(1)} ({input_type.group(1)})')
+
+    for textarea in textareas:
+        form_md.append(f'Textarea: {textarea.strip()}')
+
+    for button in buttons:
+        form_md.append(f'Button: {button.strip()}')
+
+    return '\n'.join(form_md)
 
 # Example HTML content for testing
 html_content = '''
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sample HTML</title>
 </head>
 <body>
-    <h1>Main Title</h1>
-    <p>This is a <b>bold</b> and <i>italic</i> text example.</p>
-    <h2>Subtitle</h2>
-    <p>Another paragraph with <strong>strong</strong> and <em>emphasized</em> text.</p>
-    <p>Check out this <a href="https://example.com">link</a> and this image:</p>
-    <img src="https://via.placeholder.com/150" alt="Sample Image">
-    <blockquote>This is a blockquote example.</blockquote>
-    <pre><code>print('Hello, world!')</code></pre>
+    <h1>Heading 1</h1>
+    <p>This is a <strong>bold</strong> paragraph.</p>
+    <p>This is an <em>italic</em> paragraph.</p>
+    <p>This is a paragraph with a <a href="https://www.example.com">link</a>.</p>
+    <p>This is an image: <img src="https://www.example.com/image.jpg" alt="Sample Image"></p>
+    <blockquote>This is a blockquote.</blockquote>
+    <pre><code>print("Hello, World!")</code></pre>
     <hr>
-    <ul>
-        <li>First item</li>
-        <li>Second item</li>
-        <li>Third item</li>
-    </ul>
-    <ol>
-        <li>First item</li>
-        <li>Second item</li>
-        <li>Third item</li>
-    </ol>
     <table>
         <tr>
             <th>Header 1</th>
             <th>Header 2</th>
         </tr>
         <tr>
-            <td>Data 1</td>
-            <td>Data 2</td>
+            <td>Row 1, Cell 1</td>
+            <td>Row 1, Cell 2</td>
         </tr>
         <tr>
-            <td>Data 3</td>
-            <td>Data 4</td>
+            <td>Row 2, Cell 1</td>
+            <td>Row 2, Cell 2</td>
         </tr>
     </table>
-    <p><span style="color: red; font-size: 14px;">Styled text</span></p>
+    <p>This is a <span style="font-weight: bold;">bold text</span>.</p>
+    <p>This is a <span style="text-align: center;">centered text</span>.</p>
+    <form action="/submit" method="post">
+        <input type="text" name="username" placeholder="Username">
+        <input type="password" name="password" placeholder="Password">
+        <textarea name="message">Enter your message here</textarea>
+        <button type="submit">Submit</button>
+    </form>
     <ul>
         <li>First item
             <ul>
