@@ -4,6 +4,8 @@ import logging
 import configparser
 import os
 import argparse
+import tkinter as tk
+from tkinter import filedialog, messagebox
 
 # Set up logging to output detailed information and errors to a file
 logging.basicConfig(filename='html_to_markdown.log', level=logging.DEBUG, 
@@ -35,19 +37,6 @@ def load_config(config_file='config.ini'):
     return config
 
 def html_to_markdown(html, config):
-    """
-    Convert HTML content to Markdown format.
-    
-    This function handles a wide range of HTML elements, including support for HTML5 semantic elements,
-    images with captions, details and summary tags, and custom Markdown extensions.
-
-    Args:
-    html (str): HTML content as a string.
-    config (ConfigParser): Configuration options for the conversion.
-
-    Returns:
-    str: Markdown formatted content.
-    """
     logging.debug('Starting HTML to Markdown conversion')
     
     # Create an instance of the HTML2Text converter
@@ -102,16 +91,14 @@ def handle_code_blocks(markdown):
 
 def handle_horizontal_rules(markdown):
     logging.debug('Handling horizontal rules')
-    if not config.getboolean('DEFAULT', 'ignore_horizontal_rules'):
-        hr_pattern = re.compile(r'<hr\s*/?>', re.IGNORECASE)
-        markdown = hr_pattern.sub(r'---', markdown)
+    hr_pattern = re.compile(r'<hr\s*/?>', re.IGNORECASE)
+    markdown = hr_pattern.sub(r'---', markdown)
     return markdown
 
 def handle_lists(markdown):
     logging.debug('Handling lists')
-    if not config.getboolean('DEFAULT', 'ignore_lists'):
-        markdown = re.sub(r'<ul>(.*?)</ul>', handle_unordered_list, markdown, flags=re.DOTALL)
-        markdown = re.sub(r'<ol>(.*?)</ol>', handle_ordered_list, markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<ul>(.*?)</ul>', handle_unordered_list, markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<ol>(.*?)</ol>', handle_ordered_list, markdown, flags=re.DOTALL)
     return markdown
 
 def handle_unordered_list(match):
@@ -156,9 +143,8 @@ def handle_blockquotes(markdown):
 
 def handle_tables(markdown):
     logging.debug('Handling tables')
-    if not config.getboolean('DEFAULT', 'ignore_tables'):
-        table_pattern = re.compile(r'<table>(.*?)</table>', re.DOTALL)
-        markdown = table_pattern.sub(convert_table, markdown)
+    table_pattern = re.compile(r'<table>(.*?)</table>', re.DOTALL)
+    markdown = table_pattern.sub(convert_table, markdown)
     return markdown
 
 def convert_table(match):
@@ -189,9 +175,8 @@ def handle_inline_styles(markdown):
 
 def handle_forms(markdown):
     logging.debug('Handling forms')
-    if not config.getboolean('DEFAULT', 'ignore_forms'):
-        form_pattern = re.compile(r'<form[^>]*>(.*?)</form>', re.DOTALL)
-        markdown = form_pattern.sub(convert_form, markdown)
+    form_pattern = re.compile(r'<form[^>]*>(.*?)</form>', re.DOTALL)
+    markdown = form_pattern.sub(convert_form, markdown)
     return markdown
 
 def convert_form(match):
@@ -213,13 +198,12 @@ def handle_divs_and_spans(markdown):
 
 def handle_html5_semantic_elements(markdown):
     logging.debug('Handling HTML5 semantic elements')
-    if not config.getboolean('DEFAULT', 'ignore_html5_elements'):
-        markdown = re.sub(r'<article[^>]*>(.*?)</article>', r'\1', markdown, flags=re.DOTALL)
-        markdown = re.sub(r'<section[^>]*>(.*?)</section>', r'\1', markdown, flags=re.DOTALL)
-        markdown = re.sub(r'<nav[^>]*>(.*?)</nav>', r'\1', markdown, flags=re.DOTALL)
-        markdown = re.sub(r'<aside[^>]*>(.*?)</aside>', r'\1', markdown, flags=re.DOTALL)
-        markdown = re.sub(r'<header[^>]*>(.*?)</header>', r'\1', markdown, flags=re.DOTALL)
-        markdown = re.sub(r'<footer[^>]*>(.*?)</footer>', r'\1', markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<article[^>]*>(.*?)</article>', r'\1', markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<section[^>]*>(.*?)</section>', r'\1', markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<nav[^>]*>(.*?)</nav>', r'\1', markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<aside[^>]*>(.*?)</aside>', r'\1', markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<header[^>]*>(.*?)</header>', r'\1', markdown, flags=re.DOTALL)
+    markdown = re.sub(r'<footer[^>]*>(.*?)</footer>', r'\1', markdown, flags=re.DOTALL)
     return markdown
 
 def handle_details_and_summary(markdown):
@@ -227,7 +211,7 @@ def handle_details_and_summary(markdown):
     details_pattern = re.compile(r'<details[^>]*>(.*?)</details>', re.DOTALL)
     summary_pattern = re.compile(r'<summary[^>]*>(.*?)</summary>', re.DOTALL)
     
-    markdown = details_pattern.sub(lambda m: f'<details>\n{summary_pattern.sub(lambda s: f'### Summary: {s.group(1)}', m.group(1))}\n{summary_pattern.sub("", m.group(1))}\n</details>', markdown)
+    markdown = details_pattern.sub(lambda m: f'<details>\n{summary_pattern.sub(lambda s: f"### Summary: {s.group(1)}", m.group(1))}\n{summary_pattern.sub("", m.group(1))}\n</details>', markdown)
     return markdown
 
 def handle_images_with_captions(markdown):
@@ -236,25 +220,69 @@ def handle_images_with_captions(markdown):
     markdown = img_pattern.sub(r'![\2](\1)', markdown)
     return markdown
 
-def cli_interface():
-    parser = argparse.ArgumentParser(description='Convert HTML to Markdown.')
-    parser.add_argument('input_file', help='Path to the input HTML file')
-    parser.add_argument('output_file', help='Path to the output Markdown file')
-    parser.add_argument('--config', default='config.ini', help='Path to the configuration file')
-    
-    args = parser.parse_args()
-    
-    config = load_config(args.config)
-    
-    with open(args.input_file, 'r', encoding='utf-8') as f:
+# GUI Implementation using Tkinter
+def select_input_file():
+    input_file = filedialog.askopenfilename(filetypes=[("HTML files", "*.html"), ("All files", "*.*")])
+    if input_file:
+        input_file_entry.delete(0, tk.END)
+        input_file_entry.insert(0, input_file)
+
+def select_output_file():
+    output_file = filedialog.asksaveasfilename(defaultextension=".md", filetypes=[("Markdown files", "*.md"), ("All files", "*.*")])
+    if output_file:
+        output_file_entry.delete(0, tk.END)
+        output_file_entry.insert(0, output_file)
+
+def convert_html_to_markdown():
+    input_file = input_file_entry.get()
+    output_file = output_file_entry.get()
+    config_file = config_file_entry.get()
+
+    if not input_file or not output_file:
+        messagebox.showerror("Error", "Please specify both input and output files")
+        return
+
+    config = load_config(config_file)
+
+    with open(input_file, 'r', encoding='utf-8') as f:
         html_content = f.read()
-    
+
     markdown_content = html_to_markdown(html_content, config)
-    
-    with open(args.output_file, 'w', encoding='utf-8') as f:
+
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(markdown_content)
-    
-    print(f'Conversion completed. Markdown saved to {args.output_file}')
+
+    messagebox.showinfo("Success", f'Conversion completed. Markdown saved to {output_file}')
+
+def create_gui():
+    root = tk.Tk()
+    root.title("HTML to Markdown Converter")
+
+    # Input file selection
+    tk.Label(root, text="Input HTML File:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+    global input_file_entry
+    input_file_entry = tk.Entry(root, width=50)
+    input_file_entry.grid(row=0, column=1, padx=10, pady=10)
+    tk.Button(root, text="Browse...", command=select_input_file).grid(row=0, column=2, padx=10, pady=10)
+
+    # Output file selection
+    tk.Label(root, text="Output Markdown File:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+    global output_file_entry
+    output_file_entry = tk.Entry(root, width=50)
+    output_file_entry.grid(row=1, column=1, padx=10, pady=10)
+    tk.Button(root, text="Browse...", command=select_output_file).grid(row=1, column=2, padx=10, pady=10)
+
+    # Config file selection
+    tk.Label(root, text="Config File (optional):").grid(row=2, column=0, padx=10, pady=10, sticky="e")
+    global config_file_entry
+    config_file_entry = tk.Entry(root, width=50)
+    config_file_entry.grid(row=2, column=1, padx=10, pady=10)
+    config_file_entry.insert(0, 'config.ini')
+
+    # Convert button
+    tk.Button(root, text="Convert", command=convert_html_to_markdown, width=20).grid(row=3, column=0, columnspan=3, pady=20)
+
+    root.mainloop()
 
 if __name__ == '__main__':
-    cli_interface()
+    create_gui()
