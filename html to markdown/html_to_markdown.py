@@ -1,12 +1,16 @@
 import html2text
 import re
+import logging
+
+# Set up logging to output errors to a file
+logging.basicConfig(filename='html_to_markdown.log', level=logging.ERROR)
 
 def html_to_markdown(html):
     """
     Convert HTML content to Markdown format.
     
     This function handles headings, paragraphs, bold, italic, links, images,
-    blockquotes, lists, code blocks, and horizontal rules.
+    blockquotes, lists, code blocks, horizontal rules, tables, and inline styles.
 
     Args:
     html (str): HTML content as a string.
@@ -21,7 +25,7 @@ def html_to_markdown(html):
     h.ignore_links = False  # Convert links
     h.ignore_images = False # Convert images
     h.ignore_emphasis = False # Convert emphasis (bold, italic)
-    h.ignore_tables = False  # Convert tables (if needed in the future)
+    h.ignore_tables = False  # Convert tables
     h.ignore_anchors = False # Convert anchor tags
     h.ignore_blockquotes = False # Convert blockquotes
     h.body_width = 0  # Do not wrap text at all
@@ -30,7 +34,7 @@ def html_to_markdown(html):
     try:
         markdown = h.handle(html)
     except Exception as e:
-        print(f"An error occurred while converting HTML to Markdown: {e}")
+        logging.error(f"An error occurred while converting HTML to Markdown: {e}")
         return ""
 
     # Strip leading and trailing whitespace from the Markdown content
@@ -41,6 +45,8 @@ def html_to_markdown(html):
     markdown = handle_horizontal_rules(markdown)
     markdown = handle_lists(markdown)
     markdown = handle_blockquotes(markdown)
+    markdown = handle_tables(markdown)
+    markdown = handle_inline_styles(markdown)
 
     return markdown
 
@@ -126,6 +132,55 @@ def handle_blockquotes(markdown):
     markdown = blockquote_pattern.sub(r'> \1', markdown)
     return markdown
 
+def handle_tables(markdown):
+    """
+    Handle conversion of tables.
+    
+    Args:
+    markdown (str): Markdown content as a string.
+
+    Returns:
+    str: Markdown content with tables properly formatted.
+    """
+    table_pattern = re.compile(r'<table>(.*?)</table>', re.DOTALL)
+    markdown = table_pattern.sub(convert_table, markdown)
+    return markdown
+
+def convert_table(match):
+    """
+    Helper function to convert HTML tables to Markdown format.
+    
+    Args:
+    match (re.Match): Regex match object.
+
+    Returns:
+    str: Formatted table in Markdown.
+    """
+    table_html = match.group(1)
+    rows = re.findall(r'<tr>(.*?)</tr>', table_html, re.DOTALL)
+    table_md = []
+    for row in rows:
+        cols = re.findall(r'<t[dh]>(.*?)</t[dh]>', row, re.DOTALL)
+        table_md.append('| ' + ' | '.join(col.strip() for col in cols) + ' |')
+    if table_md:
+        header_separator = '| ' + ' | '.join(['---'] * len(cols)) + ' |'
+        table_md.insert(1, header_separator)
+    return '\n'.join(table_md)
+
+def handle_inline_styles(markdown):
+    """
+    Handle conversion of inline styles (such as color and font size).
+    
+    Args:
+    markdown (str): Markdown content as a string.
+
+    Returns:
+    str: Markdown content with inline styles properly formatted.
+    """
+    style_pattern = re.compile(r'<span style=".*?">(.*?)</span>', re.DOTALL)
+    markdown = style_pattern.sub(r'\1', markdown)
+    return markdown
+
 # Example HTML content for testing
 html_content = '''
 <!DOCTYPE html>
@@ -155,6 +210,21 @@ html_content = '''
         <li>Second item</li>
         <li>Third item</li>
     </ol>
+    <table>
+        <tr>
+            <th>Header 1</th>
+            <th>Header 2</th>
+        </tr>
+        <tr>
+            <td>Data 1</td>
+            <td>Data 2</td>
+        </tr>
+        <tr>
+            <td>Data 3</td>
+            <td>Data 4</td>
+        </tr>
+    </table>
+    <p><span style="color: red; font-size: 14px;">Styled text</span></p>
 </body>
 </html>
 '''
