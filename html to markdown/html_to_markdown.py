@@ -3,6 +3,7 @@ import re
 import logging
 import configparser
 import os
+import argparse
 
 # Set up logging to output detailed information and errors to a file
 logging.basicConfig(filename='html_to_markdown.log', level=logging.DEBUG, 
@@ -20,6 +21,13 @@ def load_config(config_file='config.ini'):
             'ignore_tables': 'False',
             'ignore_anchors': 'False',
             'ignore_blockquotes': 'False',
+            'ignore_code': 'False',
+            'ignore_horizontal_rules': 'False',
+            'ignore_lists': 'False',
+            'ignore_divs_and_spans': 'False',
+            'ignore_html5_elements': 'False',
+            'ignore_forms': 'False',
+            'ignore_details_summary': 'False',
             'body_width': '0'
         }
         with open(config_file, 'w') as configfile:
@@ -30,9 +38,8 @@ def html_to_markdown(html, config):
     """
     Convert HTML content to Markdown format.
     
-    This function handles headings, paragraphs, bold, italic, links, images,
-    blockquotes, lists, code blocks, horizontal rules, tables, inline styles,
-    forms, divs, spans, and HTML5 semantic elements.
+    This function handles a wide range of HTML elements, including support for HTML5 semantic elements,
+    images with captions, details and summary tags, and custom Markdown extensions.
 
     Args:
     html (str): HTML content as a string.
@@ -53,6 +60,11 @@ def html_to_markdown(html, config):
     h.ignore_tables = config.getboolean('DEFAULT', 'ignore_tables')
     h.ignore_anchors = config.getboolean('DEFAULT', 'ignore_anchors')
     h.ignore_blockquotes = config.getboolean('DEFAULT', 'ignore_blockquotes')
+    h.ignore_code = config.getboolean('DEFAULT', 'ignore_code')
+    h.ignore_horizontal_rules = config.getboolean('DEFAULT', 'ignore_horizontal_rules')
+    h.ignore_lists = config.getboolean('DEFAULT', 'ignore_lists')
+    h.ignore_divs_and_spans = config.getboolean('DEFAULT', 'ignore_divs_and_spans')
+    h.ignore_html5_elements = config.getboolean('DEFAULT', 'ignore_html5_elements')
     h.body_width = config.getint('DEFAULT', 'body_width')
 
     # Convert HTML to Markdown
@@ -76,6 +88,8 @@ def html_to_markdown(html, config):
     markdown = handle_forms(markdown)
     markdown = handle_divs_and_spans(markdown)
     markdown = handle_html5_semantic_elements(markdown)
+    markdown = handle_details_and_summary(markdown)
+    markdown = handle_images_with_captions(markdown)
 
     logging.debug('HTML to Markdown conversion completed')
     return markdown
@@ -88,14 +102,16 @@ def handle_code_blocks(markdown):
 
 def handle_horizontal_rules(markdown):
     logging.debug('Handling horizontal rules')
-    hr_pattern = re.compile(r'<hr\s*/?>', re.IGNORECASE)
-    markdown = hr_pattern.sub(r'---', markdown)
+    if not config.getboolean('DEFAULT', 'ignore_horizontal_rules'):
+        hr_pattern = re.compile(r'<hr\s*/?>', re.IGNORECASE)
+        markdown = hr_pattern.sub(r'---', markdown)
     return markdown
 
 def handle_lists(markdown):
     logging.debug('Handling lists')
-    markdown = re.sub(r'<ul>(.*?)</ul>', handle_unordered_list, markdown, flags=re.DOTALL)
-    markdown = re.sub(r'<ol>(.*?)</ol>', handle_ordered_list, markdown, flags=re.DOTALL)
+    if not config.getboolean('DEFAULT', 'ignore_lists'):
+        markdown = re.sub(r'<ul>(.*?)</ul>', handle_unordered_list, markdown, flags=re.DOTALL)
+        markdown = re.sub(r'<ol>(.*?)</ol>', handle_ordered_list, markdown, flags=re.DOTALL)
     return markdown
 
 def handle_unordered_list(match):
@@ -140,8 +156,9 @@ def handle_blockquotes(markdown):
 
 def handle_tables(markdown):
     logging.debug('Handling tables')
-    table_pattern = re.compile(r'<table>(.*?)</table>', re.DOTALL)
-    markdown = table_pattern.sub(convert_table, markdown)
+    if not config.getboolean('DEFAULT', 'ignore_tables'):
+        table_pattern = re.compile(r'<table>(.*?)</table>', re.DOTALL)
+        markdown = table_pattern.sub(convert_table, markdown)
     return markdown
 
 def convert_table(match):
@@ -172,31 +189,19 @@ def handle_inline_styles(markdown):
 
 def handle_forms(markdown):
     logging.debug('Handling forms')
-    form_pattern = re.compile(r'<form[^>]*>(.*?)</form>', re.DOTALL)
-    markdown = form_pattern.sub(convert_form, markdown)
+    if not config.getboolean('DEFAULT', 'ignore_forms'):
+        form_pattern = re.compile(r'<form[^>]*>(.*?)</form>', re.DOTALL)
+        markdown = form_pattern.sub(convert_form, markdown)
     return markdown
 
 def convert_form(match):
     logging.debug('Converting form')
     form_html = match.group(1)
-    inputs = re.findall(r'<input[^>]*>', form_html)
-    textareas = re.findall(r'<textarea[^>]*>(.*?)</textarea>', form_html, re.DOTALL)
-    buttons = re.findall(r'<button[^>]*>(.*?)</button>', form_html, re.DOTALL)
-
-    form_md = []
-    for input_tag in inputs:
-        input_type = re.search(r'type="([^"]*)"', input_tag)
-        input_name = re.search(r'name="([^"]*)"', input_tag)
-        if input_type and input_name:
-            form_md.append(f'Input: {input_name.group(1)} ({input_type.group(1)})')
-
-    for textarea in textareas:
-        form_md.append(f'Textarea: {textarea.strip()}')
-
-    for button in buttons:
-        form_md.append(f'Button: {button.strip()}')
-
-    return '\n'.join(form_md)
+    # Convert basic form elements to Markdown
+    form_md = re.sub(r'<input[^>]*>', 'Input Field', form_html)
+    form_md = re.sub(r'<textarea[^>]*>(.*?)</textarea>', 'Text Area:\n\1', form_md, flags=re.DOTALL)
+    form_md = re.sub(r'<button[^>]*>(.*?)</button>', 'Button: \1', form_md)
+    return f'\n\nForm:\n{form_md}'
 
 def handle_divs_and_spans(markdown):
     logging.debug('Handling divs and spans')
@@ -208,93 +213,48 @@ def handle_divs_and_spans(markdown):
 
 def handle_html5_semantic_elements(markdown):
     logging.debug('Handling HTML5 semantic elements')
-    markdown = re.sub(r'<article[^>]*>(.*?)</article>', r'\1', markdown, flags=re.DOTALL)
-    markdown = re.sub(r'<section[^>]*>(.*?)</section>', r'\1', markdown, flags=re.DOTALL)
-    markdown = re.sub(r'<nav[^>]*>(.*?)</nav>', r'\1', markdown, flags=re.DOTALL)
-    markdown = re.sub(r'<aside[^>]*>(.*?)</aside>', r'\1', markdown, flags=re.DOTALL)
-    markdown = re.sub(r'<header[^>]*>(.*?)</header>', r'\1', markdown, flags=re.DOTALL)
-    markdown = re.sub(r'<footer[^>]*>(.*?)</footer>', r'\1', markdown, flags=re.DOTALL)
+    if not config.getboolean('DEFAULT', 'ignore_html5_elements'):
+        markdown = re.sub(r'<article[^>]*>(.*?)</article>', r'\1', markdown, flags=re.DOTALL)
+        markdown = re.sub(r'<section[^>]*>(.*?)</section>', r'\1', markdown, flags=re.DOTALL)
+        markdown = re.sub(r'<nav[^>]*>(.*?)</nav>', r'\1', markdown, flags=re.DOTALL)
+        markdown = re.sub(r'<aside[^>]*>(.*?)</aside>', r'\1', markdown, flags=re.DOTALL)
+        markdown = re.sub(r'<header[^>]*>(.*?)</header>', r'\1', markdown, flags=re.DOTALL)
+        markdown = re.sub(r'<footer[^>]*>(.*?)</footer>', r'\1', markdown, flags=re.DOTALL)
     return markdown
 
-# Load the configuration file
-config = load_config()
+def handle_details_and_summary(markdown):
+    logging.debug('Handling details and summary')
+    details_pattern = re.compile(r'<details[^>]*>(.*?)</details>', re.DOTALL)
+    summary_pattern = re.compile(r'<summary[^>]*>(.*?)</summary>', re.DOTALL)
+    
+    markdown = details_pattern.sub(lambda m: f'<details>\n{summary_pattern.sub(lambda s: f'### Summary: {s.group(1)}', m.group(1))}\n{summary_pattern.sub("", m.group(1))}\n</details>', markdown)
+    return markdown
 
-# Example HTML content
-html_content = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test HTML</title>
-</head>
-<body>
-    <header>
-        <h1>HTML to Markdown Converter</h1>
-    </header>
-    <nav>
-        <ul>
-            <li><a href="#home">Home</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#contact">Contact</a></li>
-        </ul>
-    </nav>
-    <section>
-        <article>
-            <h2>Introduction</h2>
-            <p>This is a <strong>bold</strong> paragraph.</p>
-            <p>This is an <em>italic</em> paragraph.</p>
-            <p>This is a paragraph with a <a href="https://www.example.com">link</a>.</p>
-            <p>This is an image: <img src="https://www.example.com/image.jpg" alt="Sample Image"></p>
-            <blockquote>This is a blockquote.</blockquote>
-            <pre><code>print("Hello, World!")</code></pre>
-            <hr>
-            <table>
-                <tr>
-                    <th>Header 1</th>
-                    <th>Header 2</th>
-                </tr>
-                <tr>
-                    <td>Row 1, Cell 1</td>
-                    <td>Row 1, Cell 2</td>
-                </tr>
-                <tr>
-                    <td>Row 2, Cell 1</td>
-                    <td>Row 2, Cell 2</td>
-                </tr>
-            </table>
-            <p>This is a <span style="font-weight: bold;">bold text</span>.</p>
-            <p>This is a <span style="text-align: center;">centered text</span>.</p>
-            <form action="/submit" method="post">
-                <input type="text" name="username" placeholder="Username">
-                <input type="password" name="password" placeholder="Password">
-                <textarea name="message">Enter your message here</textarea>
-                <button type="submit">Submit</button>
-            </form>
-            <div>
-                <p>Inside a div</p>
-                <span>Inside a span</span>
-            </div>
-            <ul>
-                <li>First item
-                    <ul>
-                        <li>Nested item 1</li>
-                        <li>Nested item 2</li>
-                    </ul>
-                </li>
-                <li>Second item</li>
-            </ul>
-        </article>
-    </section>
-    <aside>
-        <p>Aside content here.</p>
-    </aside>
-    <footer>
-        <p>Footer content here.</p>
-    </footer>
-</body>
-</html>
-'''
+def handle_images_with_captions(markdown):
+    logging.debug('Handling images with captions')
+    img_pattern = re.compile(r'<figure>\s*<img[^>]*src="([^"]*)"[^>]*>\s*<figcaption>(.*?)</figcaption>\s*</figure>', re.DOTALL)
+    markdown = img_pattern.sub(r'![\2](\1)', markdown)
+    return markdown
 
-markdown_content = html_to_markdown(html_content, config)
-print(markdown_content)
+def cli_interface():
+    parser = argparse.ArgumentParser(description='Convert HTML to Markdown.')
+    parser.add_argument('input_file', help='Path to the input HTML file')
+    parser.add_argument('output_file', help='Path to the output Markdown file')
+    parser.add_argument('--config', default='config.ini', help='Path to the configuration file')
+    
+    args = parser.parse_args()
+    
+    config = load_config(args.config)
+    
+    with open(args.input_file, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    markdown_content = html_to_markdown(html_content, config)
+    
+    with open(args.output_file, 'w', encoding='utf-8') as f:
+        f.write(markdown_content)
+    
+    print(f'Conversion completed. Markdown saved to {args.output_file}')
+
+if __name__ == '__main__':
+    cli_interface()
