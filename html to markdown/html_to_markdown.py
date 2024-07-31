@@ -2,8 +2,9 @@ import html2text
 import re
 import logging
 
-# Set up logging to output errors to a file
-logging.basicConfig(filename='html_to_markdown.log', level=logging.ERROR)
+# Set up logging to output detailed information and errors to a file
+logging.basicConfig(filename='html_to_markdown.log', level=logging.DEBUG, 
+                    format='%(asctime)s %(levelname)s %(message)s')
 
 def html_to_markdown(html):
     """
@@ -11,7 +12,7 @@ def html_to_markdown(html):
     
     This function handles headings, paragraphs, bold, italic, links, images,
     blockquotes, lists, code blocks, horizontal rules, tables, inline styles,
-    and forms.
+    forms, divs, and spans.
 
     Args:
     html (str): HTML content as a string.
@@ -19,6 +20,8 @@ def html_to_markdown(html):
     Returns:
     str: Markdown formatted content.
     """
+    logging.debug('Starting HTML to Markdown conversion')
+    
     # Create an instance of the HTML2Text converter
     h = html2text.HTML2Text()
     
@@ -34,6 +37,7 @@ def html_to_markdown(html):
     # Convert HTML to Markdown
     try:
         markdown = h.handle(html)
+        logging.debug('Initial conversion done')
     except Exception as e:
         logging.error(f"An error occurred while converting HTML to Markdown: {e}")
         return ""
@@ -49,61 +53,31 @@ def html_to_markdown(html):
     markdown = handle_tables(markdown)
     markdown = handle_inline_styles(markdown)
     markdown = handle_forms(markdown)
+    markdown = handle_divs_and_spans(markdown)
 
+    logging.debug('HTML to Markdown conversion completed')
     return markdown
 
 def handle_code_blocks(markdown):
-    """
-    Handle conversion of code blocks.
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with code blocks properly formatted.
-    """
+    logging.debug('Handling code blocks')
     code_block_pattern = re.compile(r'<pre><code>(.*?)</code></pre>', re.DOTALL)
     markdown = code_block_pattern.sub(r'```\1```', markdown)
     return markdown
 
 def handle_horizontal_rules(markdown):
-    """
-    Handle conversion of horizontal rules.
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with horizontal rules properly formatted.
-    """
+    logging.debug('Handling horizontal rules')
     hr_pattern = re.compile(r'<hr\s*/?>', re.IGNORECASE)
     markdown = hr_pattern.sub(r'---', markdown)
     return markdown
 
 def handle_lists(markdown):
-    """
-    Handle conversion of ordered and unordered lists, including nested lists.
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with lists properly formatted.
-    """
+    logging.debug('Handling lists')
     markdown = re.sub(r'<ul>(.*?)</ul>', handle_unordered_list, markdown, flags=re.DOTALL)
     markdown = re.sub(r'<ol>(.*?)</ol>', handle_ordered_list, markdown, flags=re.DOTALL)
     return markdown
 
 def handle_unordered_list(match):
-    """
-    Helper function to handle unordered lists, including nested lists.
-    
-    Args:
-    match (re.Match): Regex match object.
-
-    Returns:
-    str: Formatted unordered list.
-    """
+    logging.debug('Handling unordered list')
     items = re.findall(r'<li>(.*?)</li>', match.group(1), re.DOTALL)
     nested_ul = re.compile(r'<ul>(.*?)</ul>', re.DOTALL)
     nested_ol = re.compile(r'<ol>(.*?)</ol>', re.DOTALL)
@@ -120,15 +94,7 @@ def handle_unordered_list(match):
     return '\n'.join(formatted_items)
 
 def handle_ordered_list(match):
-    """
-    Helper function to handle ordered lists, including nested lists.
-    
-    Args:
-    match (re.Match): Regex match object.
-
-    Returns:
-    str: Formatted ordered list.
-    """
+    logging.debug('Handling ordered list')
     items = re.findall(r'<li>(.*?)</li>', match.group(1), re.DOTALL)
     nested_ul = re.compile(r'<ul>(.*?)</ul>', re.DOTALL)
     nested_ol = re.compile(r'<ol>(.*?)</ol>', re.DOTALL)
@@ -145,43 +111,19 @@ def handle_ordered_list(match):
     return '\n'.join(formatted_items)
 
 def handle_blockquotes(markdown):
-    """
-    Handle conversion of blockquotes.
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with blockquotes properly formatted.
-    """
+    logging.debug('Handling blockquotes')
     blockquote_pattern = re.compile(r'<blockquote>(.*?)</blockquote>', re.DOTALL)
     markdown = blockquote_pattern.sub(r'> \1', markdown)
     return markdown
 
 def handle_tables(markdown):
-    """
-    Handle conversion of tables, including complex structures with row and column spans.
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with tables properly formatted.
-    """
+    logging.debug('Handling tables')
     table_pattern = re.compile(r'<table>(.*?)</table>', re.DOTALL)
     markdown = table_pattern.sub(convert_table, markdown)
     return markdown
 
 def convert_table(match):
-    """
-    Helper function to convert HTML tables to Markdown format, including complex structures.
-    
-    Args:
-    match (re.Match): Regex match object.
-
-    Returns:
-    str: Formatted table in Markdown.
-    """
+    logging.debug('Converting table')
     table_html = match.group(1)
     rows = re.findall(r'<tr>(.*?)</tr>', table_html, re.DOTALL)
     table_md = []
@@ -194,15 +136,7 @@ def convert_table(match):
     return '\n'.join(table_md)
 
 def handle_inline_styles(markdown):
-    """
-    Handle conversion of inline styles (such as color, font size, text alignment, font weight).
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with inline styles properly formatted.
-    """
+    logging.debug('Handling inline styles')
     style_pattern = re.compile(r'<span style=".*?">(.*?)</span>', re.DOTALL)
     markdown = style_pattern.sub(r'\1', markdown)
     
@@ -215,29 +149,13 @@ def handle_inline_styles(markdown):
     return markdown
 
 def handle_forms(markdown):
-    """
-    Handle conversion of HTML forms to Markdown format.
-    
-    Args:
-    markdown (str): Markdown content as a string.
-
-    Returns:
-    str: Markdown content with forms properly formatted.
-    """
+    logging.debug('Handling forms')
     form_pattern = re.compile(r'<form[^>]*>(.*?)</form>', re.DOTALL)
     markdown = form_pattern.sub(convert_form, markdown)
     return markdown
 
 def convert_form(match):
-    """
-    Helper function to convert HTML forms to Markdown format.
-    
-    Args:
-    match (re.Match): Regex match object.
-
-    Returns:
-    str: Formatted form in Markdown.
-    """
+    logging.debug('Converting form')
     form_html = match.group(1)
     inputs = re.findall(r'<input[^>]*>', form_html)
     textareas = re.findall(r'<textarea[^>]*>(.*?)</textarea>', form_html, re.DOTALL)
@@ -257,6 +175,27 @@ def convert_form(match):
         form_md.append(f'Button: {button.strip()}')
 
     return '\n'.join(form_md)
+
+def handle_divs_and_spans(markdown):
+    """
+    Handle conversion of <div> and <span> elements with various styles and attributes.
+    
+    Args:
+    markdown (str): Markdown content as a string.
+
+    Returns:
+    str: Markdown content with <div> and <span> elements properly formatted.
+    """
+    logging.debug('Handling divs and spans')
+    
+    # Example: Simple conversion, can be extended to handle more attributes and styles
+    div_pattern = re.compile(r'<div[^>]*>(.*?)</div>', re.DOTALL)
+    span_pattern = re.compile(r'<span[^>]*>(.*?)</span>', re.DOTALL)
+    
+    markdown = div_pattern.sub(r'\1', markdown)
+    markdown = span_pattern.sub(r'\1', markdown)
+    
+    return markdown
 
 # Example HTML content for testing
 html_content = '''
@@ -296,6 +235,10 @@ html_content = '''
         <textarea name="message">Enter your message here</textarea>
         <button type="submit">Submit</button>
     </form>
+    <div>
+        <p>Inside a div</p>
+        <span>Inside a span</span>
+    </div>
     <ul>
         <li>First item
             <ul>
