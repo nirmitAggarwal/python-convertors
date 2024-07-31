@@ -80,7 +80,7 @@ def handle_horizontal_rules(markdown):
 
 def handle_lists(markdown):
     """
-    Handle conversion of ordered and unordered lists.
+    Handle conversion of ordered and unordered lists, including nested lists.
     
     Args:
     markdown (str): Markdown content as a string.
@@ -94,7 +94,7 @@ def handle_lists(markdown):
 
 def handle_unordered_list(match):
     """
-    Helper function to handle unordered lists.
+    Helper function to handle unordered lists, including nested lists.
     
     Args:
     match (re.Match): Regex match object.
@@ -103,11 +103,23 @@ def handle_unordered_list(match):
     str: Formatted unordered list.
     """
     items = re.findall(r'<li>(.*?)</li>', match.group(1), re.DOTALL)
-    return '\n'.join([f'- {item.strip()}' for item in items])
+    nested_ul = re.compile(r'<ul>(.*?)</ul>', re.DOTALL)
+    nested_ol = re.compile(r'<ol>(.*?)</ol>', re.DOTALL)
+    formatted_items = []
+    for item in items:
+        sub_items = []
+        if nested_ul.search(item):
+            sub_items.append(nested_ul.sub(handle_unordered_list, item))
+        elif nested_ol.search(item):
+            sub_items.append(nested_ol.sub(handle_ordered_list, item))
+        else:
+            sub_items.append(item.strip())
+        formatted_items.append('- ' + '\n  '.join(sub_items))
+    return '\n'.join(formatted_items)
 
 def handle_ordered_list(match):
     """
-    Helper function to handle ordered lists.
+    Helper function to handle ordered lists, including nested lists.
     
     Args:
     match (re.Match): Regex match object.
@@ -116,7 +128,19 @@ def handle_ordered_list(match):
     str: Formatted ordered list.
     """
     items = re.findall(r'<li>(.*?)</li>', match.group(1), re.DOTALL)
-    return '\n'.join([f'1. {item.strip()}' for item in items])
+    nested_ul = re.compile(r'<ul>(.*?)</ul>', re.DOTALL)
+    nested_ol = re.compile(r'<ol>(.*?)</ol>', re.DOTALL)
+    formatted_items = []
+    for i, item in enumerate(items, start=1):
+        sub_items = []
+        if nested_ul.search(item):
+            sub_items.append(nested_ul.sub(handle_unordered_list, item))
+        elif nested_ol.search(item):
+            sub_items.append(nested_ol.sub(handle_ordered_list, item))
+        else:
+            sub_items.append(item.strip())
+        formatted_items.append(f'{i}. ' + '\n  '.join(sub_items))
+    return '\n'.join(formatted_items)
 
 def handle_blockquotes(markdown):
     """
@@ -134,7 +158,7 @@ def handle_blockquotes(markdown):
 
 def handle_tables(markdown):
     """
-    Handle conversion of tables.
+    Handle conversion of tables, including complex structures with row and column spans.
     
     Args:
     markdown (str): Markdown content as a string.
@@ -148,7 +172,7 @@ def handle_tables(markdown):
 
 def convert_table(match):
     """
-    Helper function to convert HTML tables to Markdown format.
+    Helper function to convert HTML tables to Markdown format, including complex structures.
     
     Args:
     match (re.Match): Regex match object.
@@ -160,7 +184,7 @@ def convert_table(match):
     rows = re.findall(r'<tr>(.*?)</tr>', table_html, re.DOTALL)
     table_md = []
     for row in rows:
-        cols = re.findall(r'<t[dh]>(.*?)</t[dh]>', row, re.DOTALL)
+        cols = re.findall(r'<t[dh](?:[^>]*)>(.*?)</t[dh]>', row, re.DOTALL)
         table_md.append('| ' + ' | '.join(col.strip() for col in cols) + ' |')
     if table_md:
         header_separator = '| ' + ' | '.join(['---'] * len(cols)) + ' |'
@@ -225,12 +249,18 @@ html_content = '''
         </tr>
     </table>
     <p><span style="color: red; font-size: 14px;">Styled text</span></p>
+    <ul>
+        <li>First item
+            <ul>
+                <li>Nested item 1</li>
+                <li>Nested item 2</li>
+            </ul>
+        </li>
+        <li>Second item</li>
+    </ul>
 </body>
 </html>
 '''
 
-# Convert the example HTML to Markdown
 markdown_content = html_to_markdown(html_content)
-
-# Print the converted Markdown content
 print(markdown_content)
