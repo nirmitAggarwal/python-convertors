@@ -6,9 +6,10 @@ from tqdm import tqdm
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk, Menu
 from tkinter.scrolledtext import ScrolledText
 import simpleaudio as sa
+import time
 
 # Configure logging
 logging.basicConfig(filename='audio_converter.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -106,13 +107,14 @@ def convert_audio(input_file, output_format, bitrate=None, channels=None, sample
         print(f"An error occurred: {e}")
         logging.error(f"An error occurred: {e}")
 
-def batch_convert(directory, output_format, bitrate=None, channels=None, sample_rate=None):
+def batch_convert(directory, output_format, bitrate=None, channels=None, sample_rate=None, progress_bar=None, progress_label=None):
     try:
         if not os.path.exists(directory):
             print(f"Error: The directory '{directory}' does not exist.")
             return
 
         tasks = []
+        start_time = time.time()
 
         with ThreadPoolExecutor() as executor:
             for file_name in os.listdir(directory):
@@ -122,6 +124,11 @@ def batch_convert(directory, output_format, bitrate=None, channels=None, sample_
             
             for task in tqdm(tasks, desc="Batch Conversion", unit="file"):
                 task.result()
+        
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        progress_label.config(text=f"Batch conversion completed in {elapsed_time:.2f} seconds.")
+        progress_bar['value'] = 100
     
     except Exception as e:
         print(f"An error occurred during batch conversion: {e}")
@@ -143,12 +150,14 @@ class AudioConverterGUI(tk.Tk):
         super().__init__()
         
         self.title("Audio Format Converter")
-        self.geometry("700x500")
+        self.geometry("800x600")
         self.resizable(False, False)
         
         self.create_widgets()
     
     def create_widgets(self):
+        self.create_menu()
+        
         self.input_label = tk.Label(self, text="Input File/Directory:")
         self.input_label.pack(pady=5)
         
@@ -203,29 +212,68 @@ class AudioConverterGUI(tk.Tk):
         
         self.log_text = ScrolledText(self, height=10, width=70)
         self.log_text.pack(pady=5)
-    
+        
+        self.input_entry.drop_target_register(tk.DND_FILES)
+        self.input_entry.dnd_bind('<<Drop>>', self.drop_files)
+
+    def create_menu(self):
+        menu_bar = Menu(self)
+
+        file_menu = Menu(menu_bar, tearoff=0)
+        file_menu.add_command(label="Open", command=self.browse_files)
+        file_menu.add_command(label="Save As", command=self.save_as)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.quit)
+        menu_bar.add_cascade(label="File", menu=file_menu)
+        
+        settings_menu = Menu(menu_bar, tearoff=0)
+        settings_menu.add_command(label="Preferences", command=self.open_preferences)
+        settings_menu.add_command(label="Language", command=self.change_language)
+        menu_bar.add_cascade(label="Settings", menu=settings_menu)
+        
+        help_menu = Menu(menu_bar, tearoff=0)
+        help_menu.add_command(label="About", command=self.show_about)
+        menu_bar.add_cascade(label="Help", menu=help_menu)
+
+        self.config(menu=menu_bar)
+
+    def open_preferences(self):
+        messagebox.showinfo("Preferences", "Preferences window coming soon.")
+
+    def change_language(self):
+        messagebox.showinfo("Language", "Language selection coming soon.")
+
+    def show_about(self):
+        messagebox.showinfo("About", "Audio Format Converter v1.0\nCreated by Nirmit Aggarwal")
+
     def browse_files(self):
-        input_path = filedialog.askopenfilename()
-        if input_path:
-            self.input_entry.delete(0, tk.END)
-            self.input_entry.insert(0, input_path)
+        file_path = filedialog.askopenfilename(title="Select a File", filetypes=(("Audio Files", "*.mp3;*.wav;*.ogg;*.flac;*.aac;*.wma;*.m4a"), ("All Files", "*.*")))
+        self.input_entry.insert(0, file_path)
+    
+    def save_as(self):
+        save_path = filedialog.asksaveasfilename(title="Save File As", defaultextension=".txt", filetypes=(("Text Files", "*.txt"), ("All Files", "*.*")))
+        with open(save_path, 'w') as file:
+            file.write(self.log_text.get("1.0", tk.END))
+        messagebox.showinfo("Save As", f"Log saved to {save_path}")
+
+    def drop_files(self, event):
+        self.input_entry.delete(0, tk.END)
+        self.input_entry.insert(0, event.data)
     
     def edit_metadata(self):
         input_path = self.input_entry.get()
-        if input_path and os.path.isfile(input_path):
-            metadata = get_metadata(input_path)
-            edited_metadata = edit_metadata_gui(metadata, self)
-            self.log_text.insert(tk.END, f"Metadata edited for {input_path}: {edited_metadata}\n")
-        else:
-            messagebox.showerror("Error", "Please provide a valid input file to edit metadata.")
-    
+        if not input_path:
+            messagebox.showerror("Error", "Please select an input file first.")
+            return
+        metadata = get_metadata(input_path)
+        edit_metadata_gui(metadata, self)
+
     def preview_audio(self):
         input_path = self.input_entry.get()
-        if input_path and os.path.isfile(input_path):
-            self.log_text.insert(tk.END, f"Playing preview of {input_path}...\n")
-            preview_audio(input_path)
-        else:
-            messagebox.showerror("Error", "Please provide a valid input file to preview.")
+        if not input_path:
+            messagebox.showerror("Error", "Please select an input file first.")
+            return
+        preview_audio(input_path)
     
     def start_conversion(self):
         input_path = self.input_entry.get()
@@ -302,7 +350,8 @@ class AudioConverterGUI(tk.Tk):
                 return
 
             tasks = []
-            
+            start_time = time.time()
+
             with ThreadPoolExecutor() as executor:
                 for file_name in os.listdir(directory):
                     input_file = os.path.join(directory, file_name)
@@ -311,6 +360,11 @@ class AudioConverterGUI(tk.Tk):
                 
                 for task in tqdm(tasks, desc="Batch Conversion", unit="file"):
                     task.result()
+            
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            self.progress_label.config(text=f"Batch conversion completed in {elapsed_time:.2f} seconds.")
+            self.progress_bar['value'] = 100
         
         except Exception as e:
             self.log_text.insert(tk.END, f"An error occurred during batch conversion: {e}\n")
