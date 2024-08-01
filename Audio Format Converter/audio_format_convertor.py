@@ -1,7 +1,11 @@
 import os
+import logging
 from pydub import AudioSegment
 from pydub.utils import mediainfo
 from tqdm import tqdm
+
+# Configure logging
+logging.basicConfig(filename='audio_converter.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def is_valid_format(format):
     """
@@ -33,6 +37,28 @@ def get_metadata(input_file):
         "album": info.get("album", "Unknown"),
         "year": info.get("date", "Unknown"),
     }
+    return metadata
+
+def edit_metadata(metadata):
+    """
+    Edit metadata fields.
+    
+    Args:
+    - metadata (dict): The metadata to edit.
+    
+    Returns:
+    - dict: The edited metadata.
+    """
+    print("Current metadata:")
+    for key, value in metadata.items():
+        print(f"{key.capitalize()}: {value}")
+    
+    print("\nEnter new values for the metadata fields (leave blank to keep current value):")
+    for key in metadata:
+        new_value = input(f"{key.capitalize()}: ").strip()
+        if new_value:
+            metadata[key] = new_value
+    
     return metadata
 
 def detect_format(input_file):
@@ -86,8 +112,9 @@ def convert_audio(input_file, output_format):
         # Define the output file name
         output_file = f"{file_name}.{output_format}"
         
-        # Extract metadata
+        # Extract and edit metadata
         metadata = get_metadata(input_file)
+        metadata = edit_metadata(metadata)
         
         # Export the audio in the new format with metadata
         print(f"Converting to '{output_format}' format...")
@@ -98,8 +125,10 @@ def convert_audio(input_file, output_format):
     
     except FileNotFoundError:
         print(f"Error: The file '{input_file}' could not be found.")
+        logging.error(f"The file '{input_file}' could not be found.")
     except Exception as e:
         print(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
 
 def batch_convert(directory, output_format):
     """
@@ -127,6 +156,7 @@ def batch_convert(directory, output_format):
     
     except Exception as e:
         print(f"An error occurred during batch conversion: {e}")
+        logging.error(f"An error occurred during batch conversion: {e}")
 
 def main():
     """
@@ -151,3 +181,39 @@ def main():
 # Example usage
 if __name__ == "__main__":
     main()
+
+# Additional utility functions and classes
+
+def get_audio_length(input_file):
+    """
+    Get the length of the audio file in milliseconds.
+    
+    Args:
+    - input_file (str): Path to the input audio file.
+    
+    Returns:
+    - int: Length of the audio file in milliseconds.
+    """
+    audio = AudioSegment.from_file(input_file)
+    return len(audio)
+
+class AudioConverter:
+    """
+    A class to handle audio conversion tasks.
+    """
+    
+    def __init__(self, input_file, output_format):
+        self.input_file = input_file
+        self.output_format = output_format
+    
+    def convert(self):
+        convert_audio(self.input_file, self.output_format)
+    
+    def get_length(self):
+        return get_audio_length(self.input_file)
+    
+    def get_metadata(self):
+        return get_metadata(self.input_file)
+    
+    def edit_metadata(self):
+        return edit_metadata(self.get_metadata())
