@@ -8,12 +8,13 @@ from concurrent.futures import ThreadPoolExecutor
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
+import simpleaudio as sa
 
 # Configure logging
 logging.basicConfig(filename='audio_converter.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def is_valid_format(format):
-    valid_formats = ["mp3", "wav", "ogg", "flac", "aac"]
+    valid_formats = ["mp3", "wav", "ogg", "flac", "aac", "wma", "m4a"]
     return format.lower() in valid_formats
 
 def get_metadata(input_file):
@@ -60,14 +61,14 @@ def detect_format(input_file):
     info = mediainfo(input_file)
     return info.get("format_name", "unknown")
 
-def convert_audio(input_file, output_format, progress_callback=None):
+def convert_audio(input_file, output_format, bitrate=None, channels=None, sample_rate=None, progress_callback=None):
     try:
         if not os.path.exists(input_file):
             print(f"Error: The file '{input_file}' does not exist.")
             return
 
         if not is_valid_format(output_format):
-            print(f"Error: '{output_format}' is not a valid format. Valid formats are: mp3, wav, ogg, flac, aac.")
+            print(f"Error: '{output_format}' is not a valid format. Valid formats are: mp3, wav, ogg, flac, aac, wma, m4a.")
             return
         
         input_format = detect_format(input_file)
@@ -83,12 +84,20 @@ def convert_audio(input_file, output_format, progress_callback=None):
         
         metadata = get_metadata(input_file)
         metadata = edit_metadata_gui(metadata, None)  # Update metadata via GUI
+
+        params = {}
+        if bitrate:
+            params["bitrate"] = bitrate
+        if channels:
+            params["channels"] = channels
+        if sample_rate:
+            params["sample_rate"] = sample_rate
         
         print(f"Converting to '{output_format}' format...")
         with tqdm(total=len(audio), desc="Converting", unit="ms") as pbar:
-            audio.export(output_file, format=output_format, tags=metadata, progress_callback=lambda current, total: pbar.update(current - pbar.n))
+            audio.export(output_file, format=output_format, tags=metadata, parameters=params, progress_callback=lambda current, total: pbar.update(current - pbar.n))
         
-        print(f"Successfully converted '{input_file}' to '{output_file}' with metadata preserved.")
+        print(f"Successfully converted '{input_file}' to '{output_file}' with metadata and parameters preserved.")
     
     except FileNotFoundError:
         print(f"Error: The file '{input_file}' could not be found.")
@@ -97,7 +106,7 @@ def convert_audio(input_file, output_format, progress_callback=None):
         print(f"An error occurred: {e}")
         logging.error(f"An error occurred: {e}")
 
-def batch_convert(directory, output_format):
+def batch_convert(directory, output_format, bitrate=None, channels=None, sample_rate=None):
     try:
         if not os.path.exists(directory):
             print(f"Error: The directory '{directory}' does not exist.")
@@ -109,7 +118,7 @@ def batch_convert(directory, output_format):
             for file_name in os.listdir(directory):
                 input_file = os.path.join(directory, file_name)
                 if os.path.isfile(input_file):
-                    tasks.append(executor.submit(convert_audio, input_file, output_format))
+                    tasks.append(executor.submit(convert_audio, input_file, output_format, bitrate, channels, sample_rate))
             
             for task in tqdm(tasks, desc="Batch Conversion", unit="file"):
                 task.result()
@@ -118,17 +127,14 @@ def batch_convert(directory, output_format):
         print(f"An error occurred during batch conversion: {e}")
         logging.error(f"An error occurred during batch conversion: {e}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Audio Format Converter")
-    parser.add_argument('input', type=str, help="Input file or directory")
-    parser.add_argument('output_format', type=str, help="Desired output format (e.g., 'mp3', 'wav', 'ogg', 'flac', 'aac')")
-    parser.add_argument('--batch', action='store_true', help="Enable batch conversion if input is a directory")
-    args = parser.parse_args()
-
-    if args.batch:
-        batch_convert(args.input, args.output_format)
-    else:
-        convert_audio(args.input, args.output_format)
+def preview_audio(file_path):
+    try:
+        wave_obj = sa.WaveObject.from_wave_file(file_path)
+        play_obj = wave_obj.play()
+        play_obj.wait_done()
+    except Exception as e:
+        print(f"An error occurred during audio preview: {e}")
+        logging.error(f"An error occurred during audio preview: {e}")
 
 # GUI Code starts here
 
@@ -137,7 +143,7 @@ class AudioConverterGUI(tk.Tk):
         super().__init__()
         
         self.title("Audio Format Converter")
-        self.geometry("600x400")
+        self.geometry("700x500")
         self.resizable(False, False)
         
         self.create_widgets()
@@ -155,15 +161,36 @@ class AudioConverterGUI(tk.Tk):
         self.format_label = tk.Label(self, text="Output Format:")
         self.format_label.pack(pady=5)
         
-        self.format_combobox = ttk.Combobox(self, values=["mp3", "wav", "ogg", "flac", "aac"])
+        self.format_combobox = ttk.Combobox(self, values=["mp3", "wav", "ogg", "flac", "aac", "wma", "m4a"])
         self.format_combobox.pack(pady=5)
         
         self.batch_var = tk.BooleanVar()
         self.batch_checkbox = tk.Checkbutton(self, text="Batch Conversion", variable=self.batch_var)
         self.batch_checkbox.pack(pady=5)
+
+        self.bitrate_label = tk.Label(self, text="Bitrate (e.g., 192k):")
+        self.bitrate_label.pack(pady=5)
+        
+        self.bitrate_entry = tk.Entry(self, width=20)
+        self.bitrate_entry.pack(pady=5)
+        
+        self.channels_label = tk.Label(self, text="Channels (e.g., 1 or 2):")
+        self.channels_label.pack(pady=5)
+        
+        self.channels_entry = tk.Entry(self, width=20)
+        self.channels_entry.pack(pady=5)
+        
+        self.sample_rate_label = tk.Label(self, text="Sample Rate (e.g., 44100):")
+        self.sample_rate_label.pack(pady=5)
+        
+        self.sample_rate_entry = tk.Entry(self, width=20)
+        self.sample_rate_entry.pack(pady=5)
         
         self.edit_metadata_button = tk.Button(self, text="Edit Metadata", command=self.edit_metadata)
         self.edit_metadata_button.pack(pady=5)
+
+        self.preview_button = tk.Button(self, text="Preview Audio", command=self.preview_audio)
+        self.preview_button.pack(pady=5)
         
         self.convert_button = tk.Button(self, text="Convert", command=self.start_conversion)
         self.convert_button.pack(pady=5)
@@ -192,38 +219,50 @@ class AudioConverterGUI(tk.Tk):
         else:
             messagebox.showerror("Error", "Please provide a valid input file to edit metadata.")
     
+    def preview_audio(self):
+        input_path = self.input_entry.get()
+        if input_path and os.path.isfile(input_path):
+            self.log_text.insert(tk.END, f"Playing preview of {input_path}...\n")
+            preview_audio(input_path)
+        else:
+            messagebox.showerror("Error", "Please provide a valid input file to preview.")
+    
     def start_conversion(self):
         input_path = self.input_entry.get()
         output_format = self.format_combobox.get()
-        batch_conversion = self.batch_var.get()
-        
+        batch_mode = self.batch_var.get()
+        bitrate = self.bitrate_entry.get()
+        channels = self.channels_entry.get()
+        sample_rate = self.sample_rate_entry.get()
+
         if not input_path or not output_format:
-            messagebox.showerror("Error", "Please provide an input file and select an output format.")
+            messagebox.showerror("Error", "Please provide both input file and output format.")
             return
         
-        self.progress_bar['value'] = 0
+        self.progress_bar["value"] = 0
         self.log_text.insert(tk.END, "Starting conversion...\n")
         
-        if batch_conversion:
-            self.batch_convert_gui(input_path, output_format)
+        if batch_mode:
+            self.batch_convert_gui(input_path, output_format, bitrate, channels, sample_rate)
         else:
-            self.convert_audio_gui(input_path, output_format)
-        
-        messagebox.showinfo("Success", "Conversion completed successfully.")
+            self.convert_audio_gui(input_path, output_format, bitrate, channels, sample_rate)
     
-    def convert_audio_gui(self, input_file, output_format):
+    def convert_audio_gui(self, input_file, output_format, bitrate=None, channels=None, sample_rate=None):
         try:
             if not os.path.exists(input_file):
-                messagebox.showerror("Error", f"The file '{input_file}' does not exist.")
+                self.log_text.insert(tk.END, f"Error: The file '{input_file}' does not exist.\n")
+                logging.error(f"The file '{input_file}' does not exist.")
                 return
 
             if not is_valid_format(output_format):
-                messagebox.showerror("Error", f"'{output_format}' is not a valid format. Valid formats are: mp3, wav, ogg, flac, aac.")
+                self.log_text.insert(tk.END, f"Error: '{output_format}' is not a valid format.\n")
+                logging.error(f"'{output_format}' is not a valid format.")
                 return
             
             input_format = detect_format(input_file)
             if input_format == "unknown":
-                messagebox.showerror("Error", f"Could not detect the format of '{input_file}'.")
+                self.log_text.insert(tk.END, f"Error: Could not detect the format of '{input_file}'.\n")
+                logging.error(f"Could not detect the format of '{input_file}'.")
                 return
             
             self.log_text.insert(tk.END, f"Loading audio file '{input_file}'...\n")
@@ -234,12 +273,20 @@ class AudioConverterGUI(tk.Tk):
             
             metadata = get_metadata(input_file)
             metadata = edit_metadata_gui(metadata, self)  # Update metadata via GUI
+
+            params = {}
+            if bitrate:
+                params["bitrate"] = bitrate
+            if channels:
+                params["channels"] = channels
+            if sample_rate:
+                params["sample_rate"] = sample_rate
             
             self.log_text.insert(tk.END, f"Converting to '{output_format}' format...\n")
             with tqdm(total=len(audio), desc="Converting", unit="ms") as pbar:
-                audio.export(output_file, format=output_format, tags=metadata, progress_callback=lambda current, total: pbar.update(current - pbar.n))
+                audio.export(output_file, format=output_format, tags=metadata, parameters=params, progress_callback=lambda current, total: pbar.update(current - pbar.n))
             
-            self.log_text.insert(tk.END, f"Successfully converted '{input_file}' to '{output_file}' with metadata preserved.\n")
+            self.log_text.insert(tk.END, f"Successfully converted '{input_file}' to '{output_file}' with metadata and parameters preserved.\n")
         
         except FileNotFoundError:
             self.log_text.insert(tk.END, f"Error: The file '{input_file}' could not be found.\n")
@@ -248,7 +295,7 @@ class AudioConverterGUI(tk.Tk):
             self.log_text.insert(tk.END, f"An error occurred: {e}\n")
             logging.error(f"An error occurred: {e}")
     
-    def batch_convert_gui(self, directory, output_format):
+    def batch_convert_gui(self, directory, output_format, bitrate=None, channels=None, sample_rate=None):
         try:
             if not os.path.exists(directory):
                 messagebox.showerror("Error", f"The directory '{directory}' does not exist.")
@@ -260,7 +307,7 @@ class AudioConverterGUI(tk.Tk):
                 for file_name in os.listdir(directory):
                     input_file = os.path.join(directory, file_name)
                     if os.path.isfile(input_file):
-                        tasks.append(executor.submit(self.convert_audio_gui, input_file, output_format))
+                        tasks.append(executor.submit(self.convert_audio_gui, input_file, output_format, bitrate, channels, sample_rate))
                 
                 for task in tqdm(tasks, desc="Batch Conversion", unit="file"):
                     task.result()
