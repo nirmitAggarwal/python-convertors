@@ -5,6 +5,8 @@ from pydub.utils import mediainfo
 from tqdm import tqdm
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 
 # Configure logging
 logging.basicConfig(filename='audio_converter.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -76,7 +78,7 @@ def detect_format(input_file):
     info = mediainfo(input_file)
     return info.get("format_name", "unknown")
 
-def convert_audio(input_file, output_format):
+def convert_audio(input_file, output_format, progress_callback=None):
     """
     Convert an audio file to a different format while preserving metadata and showing progress.
     
@@ -225,3 +227,78 @@ class AudioConverter:
     
     def edit_metadata(self):
         return edit_metadata(self.get_metadata())
+
+# GUI Code starts here
+
+class AudioConverterGUI(tk.Tk):
+    """
+    A class to create a GUI for the audio converter using tkinter.
+    """
+    
+    def __init__(self):
+        super().__init__()
+        
+        self.title("Audio Format Converter")
+        self.geometry("500x300")
+        self.resizable(False, False)
+        
+        self.create_widgets()
+    
+    def create_widgets(self):
+        """
+        Create the widgets for the GUI.
+        """
+        self.input_label = tk.Label(self, text="Input File/Directory:")
+        self.input_label.pack(pady=5)
+        
+        self.input_entry = tk.Entry(self, width=50)
+        self.input_entry.pack(pady=5)
+        
+        self.browse_button = tk.Button(self, text="Browse", command=self.browse_files)
+        self.browse_button.pack(pady=5)
+        
+        self.format_label = tk.Label(self, text="Output Format:")
+        self.format_label.pack(pady=5)
+        
+        self.format_combobox = ttk.Combobox(self, values=["mp3", "wav", "ogg", "flac", "aac"])
+        self.format_combobox.pack(pady=5)
+        
+        self.batch_var = tk.BooleanVar()
+        self.batch_checkbox = tk.Checkbutton(self, text="Batch Conversion", variable=self.batch_var)
+        self.batch_checkbox.pack(pady=5)
+        
+        self.convert_button = tk.Button(self, text="Convert", command=self.start_conversion)
+        self.convert_button.pack(pady=5)
+    
+    def browse_files(self):
+        """
+        Open a file dialog to select files or directories.
+        """
+        input_path = filedialog.askopenfilename()
+        if input_path:
+            self.input_entry.delete(0, tk.END)
+            self.input_entry.insert(0, input_path)
+    
+    def start_conversion(self):
+        """
+        Start the conversion process.
+        """
+        input_path = self.input_entry.get()
+        output_format = self.format_combobox.get()
+        batch_conversion = self.batch_var.get()
+        
+        if not input_path or not output_format:
+            messagebox.showerror("Error", "Please provide an input file and select an output format.")
+            return
+        
+        if batch_conversion:
+            batch_convert(input_path, output_format)
+        else:
+            convert_audio(input_path, output_format)
+
+        messagebox.showinfo("Success", "Conversion completed successfully.")
+
+# Run the GUI
+if __name__ == "__main__":
+    app = AudioConverterGUI()
+    app.mainloop()
