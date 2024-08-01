@@ -3,6 +3,8 @@ import logging
 from pydub import AudioSegment
 from pydub.utils import mediainfo
 from tqdm import tqdm
+import argparse
+from concurrent.futures import ThreadPoolExecutor
 
 # Configure logging
 logging.basicConfig(filename='audio_converter.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -132,7 +134,7 @@ def convert_audio(input_file, output_format):
 
 def batch_convert(directory, output_format):
     """
-    Convert all audio files in a directory to a different format.
+    Convert all audio files in a directory to a different format using multithreading.
     
     Args:
     - directory (str): Path to the directory containing audio files.
@@ -147,12 +149,20 @@ def batch_convert(directory, output_format):
             print(f"Error: The directory '{directory}' does not exist.")
             return
 
-        # Iterate through all files in the directory
-        for file_name in os.listdir(directory):
-            input_file = os.path.join(directory, file_name)
-            if os.path.isfile(input_file):
-                # Perform conversion for each file
-                convert_audio(input_file, output_format)
+        # Create a list to store future tasks
+        tasks = []
+
+        with ThreadPoolExecutor() as executor:
+            # Iterate through all files in the directory
+            for file_name in os.listdir(directory):
+                input_file = os.path.join(directory, file_name)
+                if os.path.isfile(input_file):
+                    # Submit each conversion task to the thread pool executor
+                    tasks.append(executor.submit(convert_audio, input_file, output_format))
+            
+            # Wait for all tasks to complete
+            for task in tqdm(tasks, desc="Batch Conversion", unit="file"):
+                task.result()
     
     except Exception as e:
         print(f"An error occurred during batch conversion: {e}")
@@ -165,18 +175,16 @@ def main():
     Returns:
     - None
     """
-    # Get user input for the input type, file/directory path, and output format
-    input_type = input("Enter the input type ('file' for single file, 'directory' for batch conversion): ").strip().lower()
-    if input_type == "file":
-        input_file = input("Enter the path to the input audio file: ").strip()
-        output_format = input("Enter the desired output format (e.g., 'mp3', 'wav', 'ogg', 'flac', 'aac'): ").strip().lower()
-        convert_audio(input_file, output_format)
-    elif input_type == "directory":
-        directory = input("Enter the path to the directory containing audio files: ").strip()
-        output_format = input("Enter the desired output format (e.g., 'mp3', 'wav', 'ogg', 'flac', 'aac'): ").strip().lower()
-        batch_convert(directory, output_format)
+    parser = argparse.ArgumentParser(description="Audio Format Converter")
+    parser.add_argument('input', type=str, help="Input file or directory")
+    parser.add_argument('output_format', type=str, help="Desired output format (e.g., 'mp3', 'wav', 'ogg', 'flac', 'aac')")
+    parser.add_argument('--batch', action='store_true', help="Enable batch conversion if input is a directory")
+    args = parser.parse_args()
+
+    if args.batch:
+        batch_convert(args.input, args.output_format)
     else:
-        print("Error: Invalid input type. Please enter 'file' or 'directory'.")
+        convert_audio(args.input, args.output_format)
 
 # Example usage
 if __name__ == "__main__":
