@@ -1,5 +1,7 @@
 import os
 from pydub import AudioSegment
+from pydub.utils import mediainfo
+from tqdm import tqdm
 
 def is_valid_format(format):
     """
@@ -14,9 +16,28 @@ def is_valid_format(format):
     valid_formats = ["mp3", "wav", "ogg", "flac", "aac"]
     return format.lower() in valid_formats
 
+def get_metadata(input_file):
+    """
+    Extract metadata from the audio file.
+    
+    Args:
+    - input_file (str): Path to the input audio file.
+    
+    Returns:
+    - dict: Metadata of the audio file.
+    """
+    info = mediainfo(input_file)
+    metadata = {
+        "title": info.get("title", "Unknown"),
+        "artist": info.get("artist", "Unknown"),
+        "album": info.get("album", "Unknown"),
+        "year": info.get("date", "Unknown"),
+    }
+    return metadata
+
 def convert_audio(input_file, output_format):
     """
-    Convert an audio file to a different format.
+    Convert an audio file to a different format while preserving metadata and showing progress.
     
     Args:
     - input_file (str): Path to the input audio file.
@@ -39,18 +60,22 @@ def convert_audio(input_file, output_format):
         # Load the audio file
         print(f"Loading audio file '{input_file}'...")
         audio = AudioSegment.from_file(input_file)
-        
+
         # Extract the file name without extension
         file_name = os.path.splitext(input_file)[0]
         
         # Define the output file name
         output_file = f"{file_name}.{output_format}"
         
-        # Export the audio in the new format
-        print(f"Converting to '{output_format}' format...")
-        audio.export(output_file, format=output_format)
+        # Extract metadata
+        metadata = get_metadata(input_file)
         
-        print(f"Successfully converted '{input_file}' to '{output_file}'")
+        # Export the audio in the new format with metadata
+        print(f"Converting to '{output_format}' format...")
+        with tqdm(total=len(audio), desc="Converting", unit="ms") as pbar:
+            audio.export(output_file, format=output_format, tags=metadata, progress_callback=lambda current, total: pbar.update(current - pbar.n))
+        
+        print(f"Successfully converted '{input_file}' to '{output_file}' with metadata preserved.")
     
     except FileNotFoundError:
         print(f"Error: The file '{input_file}' could not be found.")
