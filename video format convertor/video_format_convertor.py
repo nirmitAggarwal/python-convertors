@@ -1,6 +1,27 @@
 import os
 import sys
 from moviepy.editor import VideoFileClip
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+
+def is_valid_format(format):
+    valid_formats = ["mp4", "avi", "mov", "wmv", "flv", "mkv"]
+    return format.lower() in valid_formats
+
+def get_metadata(input_file):
+    try:
+        clip = VideoFileClip(input_file)
+        duration = clip.duration
+        fps = clip.fps
+        width, height = clip.size
+        metadata = {
+            "duration": duration,
+            "fps": fps,
+            "resolution": f"{width}x{height}"
+        }
+        return metadata
+    except Exception as e:
+        print(f"Error retrieving metadata: {e}")
+        return None
 
 def convert_video(input_file, output_format):
     try:
@@ -8,6 +29,18 @@ def convert_video(input_file, output_format):
         if not os.path.exists(input_file):
             print(f"Error: The file '{input_file}' does not exist.")
             return
+        
+        # Check if the output format is valid
+        if not is_valid_format(output_format):
+            print(f"Error: '{output_format}' is not a valid format. Valid formats are: mp4, avi, mov, wmv, flv, mkv.")
+            return
+        
+        # Retrieve and print metadata
+        metadata = get_metadata(input_file)
+        if metadata:
+            print("Video Metadata:")
+            for key, value in metadata.items():
+                print(f"  {key}: {value}")
         
         # Load the video file
         clip = VideoFileClip(input_file)
