@@ -1,9 +1,12 @@
 import os
 import logging
-from tkinter import *
-from tkinter import filedialog, messagebox
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 from moviepy.editor import VideoFileClip
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from tqdm import tqdm
+import threading
+from PIL import Image, ImageTk
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -80,43 +83,77 @@ def convert_video(input_file, output_formats, start_time=None, end_time=None):
         logging.error(f"An error occurred: {e}")
         messagebox.showerror("Error", f"An error occurred: {e}")
 
-def browse_file():
-    filename = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4 *.avi *.mov *.wmv *.flv *.mkv")])
-    input_file_var.set(filename)
+def browse_files():
+    filenames = filedialog.askopenfilenames(filetypes=[("Video files", "*.mp4 *.avi *.mov *.wmv *.flv *.mkv")])
+    if filenames:
+        for filename in filenames:
+            input_files_listbox.insert(tk.END, filename)
+            input_files.append(filename)
+
+def preview_video():
+    selected_file = input_files_listbox.get(tk.ACTIVE)
+    if selected_file:
+        metadata = get_metadata(selected_file)
+        if metadata:
+            preview_label.config(text=f"Duration: {metadata['duration']}s\nFPS: {metadata['fps']}\nResolution: {metadata['resolution']}\nAudio Codec: {metadata['audio_codec']}\nVideo Codec: {metadata['video_codec']}")
+            clip = VideoFileClip(selected_file)
+            clip.preview()
 
 def start_conversion():
-    input_file = input_file_var.get()
     output_formats = output_formats_var.get().split()
     start_time = float(start_time_var.get()) if start_time_var.get() else None
     end_time = float(end_time_var.get()) if end_time_var.get() else None
-    
-    convert_video(input_file, output_formats, start_time, end_time)
+
+    def convert_files():
+        for input_file in input_files:
+            convert_video(input_file, output_formats, start_time, end_time)
+
+    conversion_thread = threading.Thread(target=convert_files)
+    conversion_thread.start()
 
 def create_gui():
-    root = Tk()
+    root = tk.Tk()
     root.title("Video Format Converter")
 
-    Label(root, text="Input File:").grid(row=0, column=0, padx=10, pady=10)
-    Entry(root, textvariable=input_file_var, width=50).grid(row=0, column=1, padx=10, pady=10)
-    Button(root, text="Browse", command=browse_file).grid(row=0, column=2, padx=10, pady=10)
+    main_frame = ttk.Frame(root, padding="10")
+    main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    
+    ttk.Label(main_frame, text="Input Files:").grid(row=0, column=0, padx=10, pady=10, sticky=tk.W)
+    browse_button = ttk.Button(main_frame, text="Browse", command=browse_files)
+    browse_button.grid(row=0, column=1, padx=10, pady=10, sticky=tk.W)
 
-    Label(root, text="Output Formats (space-separated):").grid(row=1, column=0, padx=10, pady=10)
-    Entry(root, textvariable=output_formats_var, width=50).grid(row=1, column=1, padx=10, pady=10)
+    global input_files_listbox
+    input_files_listbox = tk.Listbox(main_frame, height=5)
+    input_files_listbox.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky=(tk.W, tk.E))
 
-    Label(root, text="Start Time (seconds):").grid(row=2, column=0, padx=10, pady=10)
-    Entry(root, textvariable=start_time_var, width=50).grid(row=2, column=1, padx=10, pady=10)
+    ttk.Label(main_frame, text="Output Formats (space-separated):").grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
+    output_formats_entry = ttk.Entry(main_frame, textvariable=output_formats_var, width=50)
+    output_formats_entry.grid(row=2, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
 
-    Label(root, text="End Time (seconds):").grid(row=3, column=0, padx=10, pady=10)
-    Entry(root, textvariable=end_time_var, width=50).grid(row=3, column=1, padx=10, pady=10)
+    ttk.Label(main_frame, text="Start Time (seconds):").grid(row=3, column=0, padx=10, pady=10, sticky=tk.W)
+    start_time_entry = ttk.Entry(main_frame, textvariable=start_time_var, width=50)
+    start_time_entry.grid(row=3, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
 
-    Button(root, text="Convert", command=start_conversion).grid(row=4, column=1, padx=10, pady=10)
+    ttk.Label(main_frame, text="End Time (seconds):").grid(row=4, column=0, padx=10, pady=10, sticky=tk.W)
+    end_time_entry = ttk.Entry(main_frame, textvariable=end_time_var, width=50)
+    end_time_entry.grid(row=4, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
+
+    preview_button = ttk.Button(main_frame, text="Preview", command=preview_video)
+    preview_button.grid(row=5, column=0, padx=10, pady=10, sticky=tk.W)
+    convert_button = ttk.Button(main_frame, text="Convert", command=start_conversion)
+    convert_button.grid(row=5, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
+
+    global preview_label
+    preview_label = ttk.Label(main_frame, text="Video Metadata:")
+    preview_label.grid(row=6, column=0, columnspan=2, padx=10, pady=10, sticky=(tk.W, tk.E))
 
     root.mainloop()
 
 if __name__ == "__main__":
-    input_file_var = StringVar()
-    output_formats_var = StringVar()
-    start_time_var = StringVar()
-    end_time_var = StringVar()
+    input_files = []
+    input_files_listbox = None
+    output_formats_var = tk.StringVar()
+    start_time_var = tk.StringVar()
+    end_time_var = tk.StringVar()
     
     create_gui()
