@@ -3,7 +3,6 @@ import logging
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from moviepy.editor import VideoFileClip
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from tqdm import tqdm
 import threading
 from PIL import Image, ImageTk
@@ -112,8 +111,17 @@ def start_conversion():
     conversion_thread.start()
 
 def create_gui():
+    global output_formats_var, start_time_var, end_time_var
+    global input_files_listbox, preview_label, input_files
+
     root = tk.Tk()
     root.title("Video Format Converter")
+
+    input_files = []
+
+    output_formats_var = tk.StringVar()
+    start_time_var = tk.StringVar()
+    end_time_var = tk.StringVar()
 
     main_frame = ttk.Frame(root, padding="10")
     main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -122,7 +130,6 @@ def create_gui():
     browse_button = ttk.Button(main_frame, text="Browse", command=browse_files)
     browse_button.grid(row=0, column=1, padx=10, pady=10, sticky=tk.W)
 
-    global input_files_listbox
     input_files_listbox = tk.Listbox(main_frame, height=5)
     input_files_listbox.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky=(tk.W, tk.E))
 
@@ -143,17 +150,10 @@ def create_gui():
     convert_button = ttk.Button(main_frame, text="Convert", command=start_conversion)
     convert_button.grid(row=5, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
 
-    global preview_label
     preview_label = ttk.Label(main_frame, text="Video Metadata:")
     preview_label.grid(row=6, column=0, columnspan=2, padx=10, pady=10, sticky=(tk.W, tk.E))
 
     root.mainloop()
 
 if __name__ == "__main__":
-    input_files = []
-    input_files_listbox = None
-    output_formats_var = tk.StringVar()
-    start_time_var = tk.StringVar()
-    end_time_var = tk.StringVar()
-    
     create_gui()
