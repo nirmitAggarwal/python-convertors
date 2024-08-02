@@ -1,7 +1,7 @@
 import os
-import sys
 import logging
-import argparse
+from tkinter import *
+from tkinter import filedialog, messagebox
 from moviepy.editor import VideoFileClip
 from tqdm import tqdm
 
@@ -75,21 +75,48 @@ def convert_video(input_file, output_formats, start_time=None, end_time=None):
                 new_clip.write_videofile(output_file)
             
             logging.info(f"Successfully converted '{input_file}' to '{output_file}'")
+            messagebox.showinfo("Success", f"Successfully converted '{input_file}' to '{output_file}'")
     except Exception as e:
         logging.error(f"An error occurred: {e}")
+        messagebox.showerror("Error", f"An error occurred: {e}")
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Video Format Converter")
-    parser.add_argument("input_file", help="Path to the input video file")
-    parser.add_argument("output_formats", nargs='+', help="Desired output formats (e.g., mp4 avi mov)")
-    parser.add_argument("--start", type=float, help="Start time for conversion (in seconds)", default=None)
-    parser.add_argument("--end", type=float, help="End time for conversion (in seconds)", default=None)
-    return parser.parse_args()
+def browse_file():
+    filename = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4 *.avi *.mov *.wmv *.flv *.mkv")])
+    input_file_var.set(filename)
 
-def main():
-    args = parse_args()
+def start_conversion():
+    input_file = input_file_var.get()
+    output_formats = output_formats_var.get().split()
+    start_time = float(start_time_var.get()) if start_time_var.get() else None
+    end_time = float(end_time_var.get()) if end_time_var.get() else None
     
-    convert_video(args.input_file, args.output_formats, args.start, args.end)
+    convert_video(input_file, output_formats, start_time, end_time)
+
+def create_gui():
+    root = Tk()
+    root.title("Video Format Converter")
+
+    Label(root, text="Input File:").grid(row=0, column=0, padx=10, pady=10)
+    Entry(root, textvariable=input_file_var, width=50).grid(row=0, column=1, padx=10, pady=10)
+    Button(root, text="Browse", command=browse_file).grid(row=0, column=2, padx=10, pady=10)
+
+    Label(root, text="Output Formats (space-separated):").grid(row=1, column=0, padx=10, pady=10)
+    Entry(root, textvariable=output_formats_var, width=50).grid(row=1, column=1, padx=10, pady=10)
+
+    Label(root, text="Start Time (seconds):").grid(row=2, column=0, padx=10, pady=10)
+    Entry(root, textvariable=start_time_var, width=50).grid(row=2, column=1, padx=10, pady=10)
+
+    Label(root, text="End Time (seconds):").grid(row=3, column=0, padx=10, pady=10)
+    Entry(root, textvariable=end_time_var, width=50).grid(row=3, column=1, padx=10, pady=10)
+
+    Button(root, text="Convert", command=start_conversion).grid(row=4, column=1, padx=10, pady=10)
+
+    root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    input_file_var = StringVar()
+    output_formats_var = StringVar()
+    start_time_var = StringVar()
+    end_time_var = StringVar()
+    
+    create_gui()
