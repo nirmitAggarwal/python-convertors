@@ -3,6 +3,7 @@ import logging
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from moviepy.editor import VideoFileClip
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from tqdm import tqdm
 import threading
 from PIL import Image, ImageTk
@@ -32,7 +33,7 @@ def get_metadata(input_file):
         logging.error(f"Error retrieving metadata: {e}")
         return None
 
-def convert_video(input_file, output_formats, start_time=None, end_time=None):
+def convert_video(input_file, output_formats, start_time=None, end_time=None, video_bitrate=None, audio_bitrate=None):
     try:
         # Check if the input file exists
         if not os.path.exists(input_file):
@@ -74,7 +75,11 @@ def convert_video(input_file, output_formats, start_time=None, end_time=None):
                 new_clip = clip.fl(update_progress, apply_to=["mask", "audio"])
                 
                 # Write the video to the output file
-                new_clip.write_videofile(output_file)
+                new_clip.write_videofile(
+                    output_file,
+                    bitrate=video_bitrate,
+                    audio_bitrate=audio_bitrate
+                )
             
             logging.info(f"Successfully converted '{input_file}' to '{output_file}'")
             messagebox.showinfo("Success", f"Successfully converted '{input_file}' to '{output_file}'")
@@ -102,16 +107,18 @@ def start_conversion():
     output_formats = output_formats_var.get().split()
     start_time = float(start_time_var.get()) if start_time_var.get() else None
     end_time = float(end_time_var.get()) if end_time_var.get() else None
+    video_bitrate = video_bitrate_var.get() if video_bitrate_var.get() else None
+    audio_bitrate = audio_bitrate_var.get() if audio_bitrate_var.get() else None
 
     def convert_files():
         for input_file in input_files:
-            convert_video(input_file, output_formats, start_time, end_time)
+            convert_video(input_file, output_formats, start_time, end_time, video_bitrate, audio_bitrate)
 
     conversion_thread = threading.Thread(target=convert_files)
     conversion_thread.start()
 
 def create_gui():
-    global output_formats_var, start_time_var, end_time_var
+    global output_formats_var, start_time_var, end_time_var, video_bitrate_var, audio_bitrate_var
     global input_files_listbox, preview_label, input_files
 
     root = tk.Tk()
@@ -122,6 +129,8 @@ def create_gui():
     output_formats_var = tk.StringVar()
     start_time_var = tk.StringVar()
     end_time_var = tk.StringVar()
+    video_bitrate_var = tk.StringVar()
+    audio_bitrate_var = tk.StringVar()
 
     main_frame = ttk.Frame(root, padding="10")
     main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -145,13 +154,21 @@ def create_gui():
     end_time_entry = ttk.Entry(main_frame, textvariable=end_time_var, width=50)
     end_time_entry.grid(row=4, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
 
+    ttk.Label(main_frame, text="Video Bitrate (e.g., 500k, 1M):").grid(row=5, column=0, padx=10, pady=10, sticky=tk.W)
+    video_bitrate_entry = ttk.Entry(main_frame, textvariable=video_bitrate_var, width=50)
+    video_bitrate_entry.grid(row=5, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
+
+    ttk.Label(main_frame, text="Audio Bitrate (e.g., 128k, 256k):").grid(row=6, column=0, padx=10, pady=10, sticky=tk.W)
+    audio_bitrate_entry = ttk.Entry(main_frame, textvariable=audio_bitrate_var, width=50)
+    audio_bitrate_entry.grid(row=6, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
+
     preview_button = ttk.Button(main_frame, text="Preview", command=preview_video)
-    preview_button.grid(row=5, column=0, padx=10, pady=10, sticky=tk.W)
+    preview_button.grid(row=7, column=0, padx=10, pady=10, sticky=tk.W)
     convert_button = ttk.Button(main_frame, text="Convert", command=start_conversion)
-    convert_button.grid(row=5, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
+    convert_button.grid(row=7, column=1, padx=10, pady=10, sticky=(tk.W, tk.E))
 
     preview_label = ttk.Label(main_frame, text="Video Metadata:")
-    preview_label.grid(row=6, column=0, columnspan=2, padx=10, pady=10, sticky=(tk.W, tk.E))
+    preview_label.grid(row=8, column=0, columnspan=2, padx=10, pady=10, sticky=(tk.W, tk.E))
 
     root.mainloop()
 
