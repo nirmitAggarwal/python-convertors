@@ -1,0 +1,2 @@
+root - ERROR - Error: module 'PIL.Image' has no attribute 'ANTIALIAS'
+root - ERROR - Error: module 'PIL.Image' has no attribute 'ANTIALIAS'

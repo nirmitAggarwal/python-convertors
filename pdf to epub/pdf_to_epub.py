@@ -4,20 +4,26 @@ import ebooklib
 from ebooklib import epub
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinter import ttk
 from PIL import Image
 from io import BytesIO
+import logging
 
-# Function to extract text from PDF
-def extract_text(pdf_path):
+# Setup logging
+logging.basicConfig(level=logging.INFO, filename='pdf_to_epub.log', filemode='w',
+                    format='%(name)s - %(levelname)s - %(message)s')
+
+# Function to extract text with formatting from PDF
+def extract_text_with_formatting(pdf_path):
     doc = fitz.open(pdf_path)
     text = ""
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
-        text += page.get_text()
+        text += page.get_text("xhtml")
     return text
 
-# Function to extract images from PDF
-def extract_images(pdf_path):
+# Function to extract images from PDF and resize
+def extract_and_resize_images(pdf_path):
     doc = fitz.open(pdf_path)
     images = []
     for page_num in range(len(doc)):
@@ -26,10 +32,14 @@ def extract_images(pdf_path):
             xref = img[0]
             base_image = doc.extract_image(xref)
             image_bytes = base_image["image"]
-            images.append(image_bytes)
+            image = Image.open(BytesIO(image_bytes))
+            image = image.resize((600, 800), Image.ANTIALIAS)
+            img_byte_arr = BytesIO()
+            image.save(img_byte_arr, format='PNG')
+            images.append(img_byte_arr.getvalue())
     return images
 
-# Function to convert images to EPUB format
+# Function to add images to EPUB format
 def add_images_to_epub(epub_book, images):
     for img_index, img_data in enumerate(images):
         image = epub.EpubItem(
@@ -48,7 +58,7 @@ def create_epub(text, images, title, author):
     
     # Add text
     chapter = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
-    chapter.content = f'<h1>Chapter 1</h1><p>{text}</p>'
+    chapter.content = text
     book.add_item(chapter)
     
     # Add images
@@ -62,7 +72,11 @@ def create_epub(text, images, title, author):
     book.add_item(epub.EpubNav())
     
     # Define CSS style
-    style = 'BODY {color: white;}'
+    style = '''
+    body { font-family: Arial, sans-serif; margin: 0; padding: 1em; }
+    h1 { color: #2E8B57; }
+    p { text-align: justify; }
+    '''
     nav_css = epub.EpubItem(
         uid="style_nav", 
         file_name="style/nav.css", 
@@ -80,16 +94,18 @@ def create_epub(text, images, title, author):
 def save_epub(book, output_path):
     epub.write_epub(output_path, book, {})
 
-# Function to handle the conversion process
-def convert_pdf_to_epub(pdf_path, output_path, title, author):
+# Function to handle the conversion process with progress bar
+def convert_pdf_to_epub(pdf_path, output_path, title, author, progress_callback=None):
     try:
-        text = extract_text(pdf_path)
-        images = extract_images(pdf_path)
+        text = extract_text_with_formatting(pdf_path)
+        images = extract_and_resize_images(pdf_path)
         epub_book = create_epub(text, images, title, author)
         save_epub(epub_book, output_path)
-        print(f"Successfully converted {pdf_path} to {output_path}")
+        logging.info(f"Successfully converted {pdf_path} to {output_path}")
+        if progress_callback:
+            progress_callback()
     except Exception as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
 
 # GUI for selecting files and starting conversion
 def start_gui():
@@ -110,10 +126,18 @@ def start_gui():
         
         title = title_entry.get()
         author = author_entry.get()
-        
+
+        total_files = file_list.size()
+        progress_bar["maximum"] = total_files
+        progress_bar["value"] = 0
+
+        def update_progress():
+            progress_bar["value"] += 1
+            root.update_idletasks()
+
         for file in file_list.get(0, tk.END):
             output_path = os.path.join(output_dir, os.path.splitext(os.path.basename(file))[0] + ".epub")
-            convert_pdf_to_epub(file, output_path, title, author)
+            convert_pdf_to_epub(file, output_path, title, author, update_progress)
         
         messagebox.showinfo("Success", "Conversion completed")
 
@@ -135,6 +159,9 @@ def start_gui():
 
     convert_button = tk.Button(root, text="Convert to EPUB", command=convert_files)
     convert_button.pack(pady=20)
+
+    progress_bar = ttk.Progressbar(root, orient='horizontal', mode='determinate')
+    progress_bar.pack(pady=5, fill=tk.X, padx=10)
 
     root.mainloop()
 
