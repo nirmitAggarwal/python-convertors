@@ -4,6 +4,8 @@ from fpdf import FPDF
 from bs4 import BeautifulSoup
 from PIL import Image
 import io
+import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext
 
 class EPUBtoPDFConverter:
     def __init__(self, epub_path, pdf_path):
@@ -103,10 +105,57 @@ class EPUBtoPDFConverter:
         except Exception as e:
             logging.error(f"Error saving PDF: {e}")
 
+class EPUBtoPDFGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("EPUB to PDF Converter")
+        self.create_widgets()
+
+    def create_widgets(self):
+        # EPUB File Selection
+        tk.Label(self.root, text="Select EPUB file:").grid(row=0, column=0, padx=10, pady=10)
+        self.epub_entry = tk.Entry(self.root, width=50)
+        self.epub_entry.grid(row=0, column=1, padx=10, pady=10)
+        tk.Button(self.root, text="Browse", command=self.load_epub).grid(row=0, column=2, padx=10, pady=10)
+
+        # PDF Output File Selection
+        tk.Label(self.root, text="Save PDF as:").grid(row=1, column=0, padx=10, pady=10)
+        self.pdf_entry = tk.Entry(self.root, width=50)
+        self.pdf_entry.grid(row=1, column=1, padx=10, pady=10)
+        tk.Button(self.root, text="Browse", command=self.save_pdf).grid(row=1, column=2, padx=10, pady=10)
+
+        # Convert Button
+        tk.Button(self.root, text="Convert", command=self.convert_epub_to_pdf).grid(row=2, column=0, columnspan=3, pady=20)
+
+        # Log Area
+        self.log_area = scrolledtext.ScrolledText(self.root, width=70, height=15, wrap=tk.WORD)
+        self.log_area.grid(row=3, column=0, columnspan=3, padx=10, pady=10)
+
+    def load_epub(self):
+        file_path = filedialog.askopenfilename(filetypes=[("EPUB files", "*.epub")])
+        if file_path:
+            self.epub_entry.delete(0, tk.END)
+            self.epub_entry.insert(0, file_path)
+
+    def save_pdf(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")])
+        if file_path:
+            self.pdf_entry.delete(0, tk.END)
+            self.pdf_entry.insert(0, file_path)
+
+    def convert_epub_to_pdf(self):
+        epub_path = self.epub_entry.get()
+        pdf_path = self.pdf_entry.get()
+        if not epub_path or not pdf_path:
+            messagebox.showerror("Input Error", "Please select both EPUB file and output PDF file.")
+            return
+        converter = EPUBtoPDFConverter(epub_path, pdf_path)
+        result = converter.convert()
+        self.log_area.insert(tk.END, result + "\n")
+        self.log_area.yview(tk.END)
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    epub_path = "path/to/your/epubfile.epub"  # Update this path
-    pdf_path = "path/to/your/outputfile.pdf"  # Update this path
-    converter = EPUBtoPDFConverter(epub_path, pdf_path)
-    result = converter.convert()
-    print(result)
+    root = tk.Tk()
+    app = EPUBtoPDFGUI(root)
+    root.mainloop()
