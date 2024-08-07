@@ -43,6 +43,9 @@ Combine multiple images into a single PDF file.
 - `Pillow`
 - `reportlab`
 
+**for larger conversions**
+- `PDF.co web API in terminal`
+
 **Installation:**
 ```bash
 pip install Pillow reportlab
